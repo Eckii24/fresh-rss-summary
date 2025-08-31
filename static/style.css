@@ -7,6 +7,15 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .gemini-summary-wrap {
+        background: #2d3748;
+        border: 1px solid #4a5568;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+}
+
 .gemini-summary-btn {
     background: #4285f4;
     color: white;
@@ -35,6 +44,13 @@
     color: #333;
 }
 
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .gemini-summary-content {
+        color: #e2e8f0;
+    }
+}
+
 .gemini-summary-content.visible {
     display: block;
     margin-top: 12px;
@@ -42,6 +58,14 @@
     background: white;
     border-radius: 4px;
     border-left: 4px solid #4285f4;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .gemini-summary-content.visible {
+        background: #1a202c;
+        border-left: 4px solid #4285f4;
+    }
 }
 
 .gemini-summary-wrap.loading .gemini-summary-btn {
@@ -73,11 +97,27 @@
     font-style: italic;
 }
 
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .gemini-summary-wrap.loading .gemini-summary-content {
+        color: #a0aec0;
+    }
+}
+
 .gemini-summary-wrap.error .gemini-summary-content {
     display: block;
     color: #d32f2f;
     background: #ffebee;
     border-left-color: #d32f2f;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .gemini-summary-wrap.error .gemini-summary-content {
+        color: #fed7d7;
+        background: #742a2a;
+        border-left-color: #fc8181;
+    }
 }
 
 .gemini-summary-wrap.error .gemini-summary-btn {
@@ -86,6 +126,17 @@
 
 .gemini-summary-wrap.error .gemini-summary-btn:hover {
     background: #b71c1c;
+}
+
+/* Dark mode support for error states */
+@media (prefers-color-scheme: dark) {
+    .gemini-summary-wrap.error .gemini-summary-btn {
+        background: #e53e3e;
+    }
+    
+    .gemini-summary-wrap.error .gemini-summary-btn:hover {
+        background: #c53030;
+    }
 }
 
 /* YouTube indicator */
