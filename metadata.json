@@ -1,0 +1,8 @@
+{
+  "name": "Summary",
+  "author": "Eckii24",
+  "description": "AI-powered article summarization extension for FreshRSS using Google Gemini with support for YouTube video understanding",
+  "version": "1.0.0",
+  "entrypoint": "Summary",
+  "type": "user"
+}
