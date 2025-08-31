@@ -1,0 +1,47 @@
+<?php
+
+class SummaryExtension extends Minz_Extension
+{
+    protected array $csp_policies = [
+        'default-src' => '*',
+    ];
+
+    public function init()
+    {
+        $this->registerHook('entry_before_display', array($this, 'addSummaryButton'));
+        $this->registerController('Summary');
+        Minz_View::appendStyle($this->getFileUrl('style.css', 'css'));
+        Minz_View::appendScript($this->getFileUrl('script.js', 'js'));
+    }
+
+    public function addSummaryButton($entry)
+    {
+        $url_summary = Minz_Url::display(array(
+            'c' => 'Summary',
+            'a' => 'summarize',
+            'params' => array(
+                'id' => $entry->id()
+            )
+        ));
+
+        $entry->_content(
+            '<div class="gemini-summary-wrap">'
+            . '<button data-request="' . $url_summary . '" class="gemini-summary-btn">Summary</button>'
+            . '<div class="gemini-summary-content"></div>'
+            . '</div>'
+            . $entry->content()
+        );
+        return $entry;
+    }
+
+    public function handleConfigureAction()
+    {
+        if (Minz_Request::isPost()) {
+            FreshRSS_Context::$user_conf->gemini_api_key = Minz_Request::param('gemini_api_key', '');
+            FreshRSS_Context::$user_conf->gemini_model = Minz_Request::param('gemini_model', 'gemini-1.5-flash');
+            FreshRSS_Context::$user_conf->gemini_general_prompt = Minz_Request::param('gemini_general_prompt', '');
+            FreshRSS_Context::$user_conf->gemini_youtube_prompt = Minz_Request::param('gemini_youtube_prompt', '');
+            FreshRSS_Context::$user_conf->save();
+        }
+    }
+}

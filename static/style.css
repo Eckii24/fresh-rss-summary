@@ -1,0 +1,129 @@
+.gemini-summary-wrap {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.gemini-summary-btn {
+    background: #4285f4;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.gemini-summary-btn:hover {
+    background: #3367d6;
+}
+
+.gemini-summary-btn:disabled {
+    background: #9aa0a6;
+    cursor: not-allowed;
+}
+
+.gemini-summary-content {
+    display: none;
+    line-height: 1.6;
+    color: #333;
+}
+
+.gemini-summary-content.visible {
+    display: block;
+    margin-top: 12px;
+    padding: 12px;
+    background: white;
+    border-radius: 4px;
+    border-left: 4px solid #4285f4;
+}
+
+.gemini-summary-wrap.loading .gemini-summary-btn {
+    position: relative;
+}
+
+.gemini-summary-wrap.loading .gemini-summary-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid transparent;
+    border-top: 2px solid #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.gemini-summary-wrap.loading .gemini-summary-content {
+    display: block;
+    color: #666;
+    font-style: italic;
+}
+
+.gemini-summary-wrap.error .gemini-summary-content {
+    display: block;
+    color: #d32f2f;
+    background: #ffebee;
+    border-left-color: #d32f2f;
+}
+
+.gemini-summary-wrap.error .gemini-summary-btn {
+    background: #d32f2f;
+}
+
+.gemini-summary-wrap.error .gemini-summary-btn:hover {
+    background: #b71c1c;
+}
+
+/* YouTube indicator */
+.gemini-summary-wrap.youtube .gemini-summary-btn {
+    background: #ff0000;
+}
+
+.gemini-summary-wrap.youtube .gemini-summary-btn:hover {
+    background: #cc0000;
+}
+
+.gemini-summary-wrap.youtube .gemini-summary-btn::before {
+    content: '▶ ';
+    margin-right: 4px;
+}
+
+/* Summary content styling */
+.gemini-summary-content h1,
+.gemini-summary-content h2,
+.gemini-summary-content h3,
+.gemini-summary-content h4,
+.gemini-summary-content h5,
+.gemini-summary-content h6 {
+    margin: 0 0 8px 0;
+    padding: 0;
+}
+
+.gemini-summary-content p {
+    margin: 0 0 8px 0;
+    padding: 0;
+}
+
+.gemini-summary-content ul,
+.gemini-summary-content ol {
+    margin: 0 0 8px 16px;
+    padding: 0;
+}
+
+.gemini-summary-content li {
+    margin: 0 0 4px 0;
+}
