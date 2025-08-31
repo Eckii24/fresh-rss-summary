@@ -3,6 +3,8 @@ $gemini_api_key = FreshRSS_Context::$user_conf->gemini_api_key ?? '';
 $gemini_model = FreshRSS_Context::$user_conf->gemini_model ?? 'gemini-1.5-flash';
 $gemini_general_prompt = FreshRSS_Context::$user_conf->gemini_general_prompt ?? 'Please provide a concise summary of the following article content:';
 $gemini_youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
+$gemini_max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
+$gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
 ?>
 
 <form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post">
@@ -19,22 +21,34 @@ $gemini_youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 
     <div class="form-group">
         <label for="gemini_model">Gemini Model:</label>
         <select name="gemini_model" id="gemini_model">
-            <option value="gemini-1.5-flash" <?php echo ($gemini_model === 'gemini-1.5-flash' ? 'selected' : ''); ?>>Gemini 1.5 Flash</option>
-            <option value="gemini-1.5-pro" <?php echo ($gemini_model === 'gemini-1.5-pro' ? 'selected' : ''); ?>>Gemini 1.5 Pro</option>
-            <option value="gemini-pro" <?php echo ($gemini_model === 'gemini-pro' ? 'selected' : ''); ?>>Gemini Pro</option>
+            <option value="gemini-1.5-flash" <?php echo ($gemini_model === 'gemini-1.5-flash' ? 'selected' : ''); ?>>Gemini 1.5 Flash (Fast)</option>
+            <option value="gemini-1.5-pro" <?php echo ($gemini_model === 'gemini-1.5-pro' ? 'selected' : ''); ?>>Gemini 1.5 Pro (Higher Quality)</option>
+            <option value="gemini-pro" <?php echo ($gemini_model === 'gemini-pro' ? 'selected' : ''); ?>>Gemini Pro (Legacy)</option>
         </select>
     </div>
     
     <div class="form-group">
         <label for="gemini_general_prompt">General Articles Prompt:</label>
         <textarea name="gemini_general_prompt" id="gemini_general_prompt" rows="3" style="width: 100%; max-width: 600px;"><?php echo htmlspecialchars($gemini_general_prompt); ?></textarea>
-        <small>This prompt will be used for regular text articles</small>
+        <small>This prompt will be used for regular text articles and blog posts</small>
     </div>
     
     <div class="form-group">
         <label for="gemini_youtube_prompt">YouTube Videos Prompt:</label>
         <textarea name="gemini_youtube_prompt" id="gemini_youtube_prompt" rows="3" style="width: 100%; max-width: 600px;"><?php echo htmlspecialchars($gemini_youtube_prompt); ?></textarea>
-        <small>This prompt will be used for YouTube videos (requires video understanding)</small>
+        <small>This prompt will be used for YouTube videos (uses video title and description)</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="gemini_max_tokens">Maximum Output Tokens:</label>
+        <input type="number" name="gemini_max_tokens" id="gemini_max_tokens" value="<?php echo htmlspecialchars($gemini_max_tokens); ?>" min="100" max="4096" step="1" style="width: 120px;">
+        <small>Maximum length of the generated summary (100-4096 tokens)</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="gemini_temperature">Temperature (Creativity):</label>
+        <input type="number" name="gemini_temperature" id="gemini_temperature" value="<?php echo htmlspecialchars($gemini_temperature); ?>" min="0" max="2" step="0.1" style="width: 120px;">
+        <small>Controls randomness: 0.0 (focused) to 2.0 (creative). Recommended: 0.7</small>
     </div>
     
     <hr />
@@ -65,5 +79,22 @@ $gemini_youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-important {
+    background: #4285f4;
+    color: white;
+}
+
+.btn-important:hover {
+    background: #3367d6;
 }
 </style>

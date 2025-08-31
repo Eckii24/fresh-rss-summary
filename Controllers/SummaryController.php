@@ -18,6 +18,8 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $model = FreshRSS_Context::$user_conf->gemini_model ?? 'gemini-1.5-flash';
         $general_prompt = FreshRSS_Context::$user_conf->gemini_general_prompt ?? 'Please provide a concise summary of the following article content:';
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
+        $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
+        $temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
 
         // Validate configuration
         if (empty($api_key) || empty($model)) {
@@ -46,9 +48,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             $youtube_video_id = $this->extractYouTubeVideoId($article_url);
             
             if ($youtube_video_id) {
-                $summary = $this->summarizeYouTubeVideo($youtube_video_id, $youtube_prompt, $api_key, $model);
+                $summary = $this->summarizeYouTubeVideo($youtube_video_id, $youtube_prompt, $api_key, $model, $max_tokens, $temperature);
             } else {
-                $summary = $this->summarizeTextContent($content, $general_prompt, $api_key, $model);
+                $summary = $this->summarizeTextContent($content, $general_prompt, $api_key, $model, $max_tokens, $temperature);
             }
 
             echo json_encode([
@@ -75,40 +77,48 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         return null;
     }
 
-    private function summarizeYouTubeVideo($video_id, $prompt, $api_key, $model)
+    private function summarizeYouTubeVideo($video_id, $prompt, $api_key, $model, $max_tokens, $temperature)
     {
-        // For YouTube videos, we first need to upload the video reference to Gemini
-        // However, YouTube direct processing might require different approach
-        // For now, we'll use the text-based approach with video metadata
+        // For YouTube videos, we have two approaches:
+        // 1. Use video file upload API (complex, requires file processing)
+        // 2. Use text-based approach with video metadata (simpler, more reliable)
         
+        // We'll use approach 2 for better reliability and easier implementation
         $youtube_url = "https://www.youtube.com/watch?v={$video_id}";
         
-        // Try to get video title and description using a fallback approach
+        // Get video metadata for better context
         $video_info = $this->getYouTubeVideoInfo($video_id);
         
         $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
         
-        $video_context = "YouTube Video: {$youtube_url}\n";
+        $video_context = "YouTube Video Analysis Request\n";
+        $video_context .= "Video URL: {$youtube_url}\n";
+        
         if ($video_info) {
-            $video_context .= "Title: {$video_info['title']}\n";
+            $video_context .= "Video Title: {$video_info['title']}\n";
             if (!empty($video_info['description'])) {
-                $video_context .= "Description: {$video_info['description']}\n";
+                $video_context .= "Video Description: {$video_info['description']}\n";
             }
         }
+        
+        $video_context .= "\nNote: This is a YouTube video. Please provide a summary based on the video title and description, ";
+        $video_context .= "focusing on the main topics, key points, and overall content theme.";
         
         $data = [
             'contents' => [
                 [
                     'parts' => [
                         [
-                            'text' => $prompt . "\n\n" . $video_context . "\n\nPlease provide a summary based on this YouTube video information."
+                            'text' => $prompt . "\n\n" . $video_context
                         ]
                     ]
                 ]
             ],
             'generationConfig' => [
-                'temperature' => 0.7,
-                'maxOutputTokens' => 1024,
+                'temperature' => $temperature,
+                'maxOutputTokens' => $max_tokens,
+                'topP' => 0.9,
+                'topK' => 40
             ]
         ];
 
@@ -162,7 +172,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         return null;
     }
 
-    private function summarizeTextContent($content, $prompt, $api_key, $model)
+    private function summarizeTextContent($content, $prompt, $api_key, $model, $max_tokens, $temperature)
     {
         $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
         
@@ -180,8 +190,10 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 ]
             ],
             'generationConfig' => [
-                'temperature' => 0.7,
-                'maxOutputTokens' => 1024,
+                'temperature' => $temperature,
+                'maxOutputTokens' => $max_tokens,
+                'topP' => 0.9,
+                'topK' => 40
             ]
         ];
 
