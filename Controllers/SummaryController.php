@@ -10,7 +10,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
     ];
     
     // Set to true to enable debug logging for troubleshooting API response issues
-    private const DEBUG_MODE = false;
+    private const DEBUG_MODE = true;
     
     // Models that might need v1 API instead of v1beta
     private const V1_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'];
@@ -237,26 +237,57 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         // Try the primary request format first
         $result = $this->makeGeminiRequest($url, $data);
         if ($result !== null) {
-            return $this->parseGeminiResponse($result);
+            try {
+                return $this->parseGeminiResponse($result);
+            } catch (Exception $e) {
+                if (self::DEBUG_MODE) {
+                    error_log('Primary format failed during parsing: ' . $e->getMessage());
+                }
+                // Continue to try alternatives
+            }
         }
         
-        // If primary format failed, try alternative request format for newer models
+        // If primary format failed, try alternative request formats for newer models
         if (self::DEBUG_MODE) {
-            error_log('Primary request format failed, trying alternative format...');
+            error_log('Primary request format failed, trying alternative formats...');
         }
         
-        $alternative_data = $this->getAlternativeRequestFormat($data);
-        $result = $this->makeGeminiRequest($url, $alternative_data);
-        if ($result !== null) {
-            return $this->parseGeminiResponse($result);
+        // Try multiple alternative formats
+        for ($i = 0; $i < 3; $i++) {
+            $alternative_data = $this->getAlternativeRequestFormat($data, $i);
+            if ($alternative_data === $data) {
+                break; // No more alternatives
+            }
+            
+            if (self::DEBUG_MODE) {
+                error_log("Trying alternative format #{$i}: " . json_encode($alternative_data));
+            }
+            
+            $result = $this->makeGeminiRequest($url, $alternative_data);
+            if ($result !== null) {
+                try {
+                    return $this->parseGeminiResponse($result);
+                } catch (Exception $e) {
+                    if (self::DEBUG_MODE) {
+                        error_log("Alternative format #{$i} failed during parsing: " . $e->getMessage());
+                    }
+                    // Continue to next alternative
+                }
+            }
         }
         
-        throw new Exception('Both primary and alternative request formats failed');
+        throw new Exception('All request formats failed. This may indicate the model is not available or the API endpoint is incorrect.');
     }
     
     private function makeGeminiRequest($url, $data)
     {
         $json_data = json_encode($data);
+        
+        // Debug: Log request details
+        if (self::DEBUG_MODE) {
+            error_log("Making request to URL: {$url}");
+            error_log("Request payload: " . $json_data);
+        }
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -281,16 +312,31 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
         
         if (curl_error($ch)) {
+            $curl_error = curl_error($ch);
             curl_close($ch);
-            throw new Exception('CURL Error: ' . curl_error($ch));
+            if (self::DEBUG_MODE) {
+                error_log("CURL Error: {$curl_error}");
+            }
+            throw new Exception('CURL Error: ' . $curl_error);
         }
         
         curl_close($ch);
 
         if ($http_code !== 200) {
             if (self::DEBUG_MODE) {
-                error_log("API request failed with HTTP {$http_code}");
+                error_log("API request failed with HTTP {$http_code}. Response: {$response}");
             }
+            
+            // For debugging, let's parse the error response to provide better info
+            $error_data = json_decode($response, true);
+            if ($error_data && isset($error_data['error'])) {
+                $error_message = $error_data['error']['message'] ?? 'Unknown error';
+                if (self::DEBUG_MODE) {
+                    error_log("Parsed error message: {$error_message}");
+                }
+                throw new Exception("API Error (HTTP {$http_code}): {$error_message}");
+            }
+            
             // Return null to try alternative format instead of throwing immediately
             return null;
         }
@@ -298,31 +344,65 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $result = json_decode($response, true);
         
         if (!$result) {
+            if (self::DEBUG_MODE) {
+                error_log("Failed to decode JSON response: {$response}");
+            }
             throw new Exception('Invalid JSON response from Gemini API: ' . $response);
         }
         
         return $result;
     }
     
-    private function getAlternativeRequestFormat($original_data)
+    private function getAlternativeRequestFormat($original_data, $alternative_index = 0)
     {
         // Alternative format that some newer models might expect
         if (isset($original_data['contents'][0]['parts'][0]['text'])) {
             $text = $original_data['contents'][0]['parts'][0]['text'];
             
-            // Try simplified format
-            $alternative = [
+            // For v1 API, try different request structures
+            $alternatives = [];
+            
+            // Alternative 0: Simplified format used by some newer models
+            $alternatives[0] = [
                 'prompt' => [
                     'text' => $text
                 ]
             ];
             
-            // Copy generation config if present
-            if (isset($original_data['generationConfig'])) {
-                $alternative['generationConfig'] = $original_data['generationConfig'];
-            }
+            // Alternative 1: Single part format with explicit role (for v1 API)
+            $alternatives[1] = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            ['text' => $text]
+                        ]
+                    ]
+                ]
+            ];
             
-            return $alternative;
+            // Alternative 2: Direct text format
+            $alternatives[2] = [
+                'input' => [
+                    'text' => $text
+                ]
+            ];
+            
+            // Return the requested alternative or the original if index is out of bounds
+            if (isset($alternatives[$alternative_index])) {
+                $alternative = $alternatives[$alternative_index];
+                
+                // Copy generation config if present
+                if (isset($original_data['generationConfig'])) {
+                    $alternative['generationConfig'] = $original_data['generationConfig'];
+                }
+                
+                if (self::DEBUG_MODE) {
+                    error_log("Returning alternative request format #{$alternative_index}: " . json_encode($alternative, JSON_PRETTY_PRINT));
+                }
+                
+                return $alternative;
+            }
         }
         
         return $original_data;
@@ -376,7 +456,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             error_log('First candidate structure: ' . json_encode($candidate, JSON_PRETTY_PRINT));
         }
         
-        // Check for safety/content filtering
+        // Special handling for incomplete responses due to MAX_TOKENS or other issues
         if (isset($candidate['finishReason'])) {
             $finish_reason = $candidate['finishReason'];
             if (in_array($finish_reason, ['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT'])) {
@@ -386,6 +466,18 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 // Content was truncated but might still be usable
                 if (self::DEBUG_MODE) {
                     error_log('Warning: Content was truncated due to MAX_TOKENS');
+                }
+                
+                // For MAX_TOKENS, if content is incomplete (missing parts), we need to handle this specifically
+                if (isset($candidate['content']) && isset($candidate['content']['role']) && 
+                    $candidate['content']['role'] === 'model' && 
+                    !isset($candidate['content']['parts'])) {
+                    
+                    if (self::DEBUG_MODE) {
+                        error_log('Detected MAX_TOKENS issue with incomplete content structure - this suggests request format may be incorrect for this model');
+                    }
+                    
+                    throw new Exception('API response indicates token limit reached but content structure is incomplete. This may indicate a request format issue with this model. Try reducing max_tokens or check model compatibility.');
                 }
             }
         }
