@@ -559,7 +559,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             if ($finish_reason === 'MAX_TOKENS') {
                 // Content was truncated but might still be usable
                 if (self::DEBUG_MODE) {
-                    error_log('Warning: Content was truncated due to MAX_TOKENS');
+                    error_log('Warning: Content was truncated due to MAX_TOKENS - will still try to extract available content');
                 }
                 
                 // For MAX_TOKENS, if content is incomplete (missing parts), we need to handle this specifically
@@ -573,6 +573,8 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                     
                     throw new Exception('API response indicates token limit reached but content structure is incomplete. This may indicate a request format issue with this model. Try reducing max_tokens or check model compatibility.');
                 }
+                
+                // Continue processing - don't throw error immediately for MAX_TOKENS, try to extract available content first
             }
         }
         
@@ -583,7 +585,11 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             $text = $this->combineTextParts($candidate['content']['parts']);
             if (!empty($text)) {
                 if (self::DEBUG_MODE) {
-                    error_log('Successfully extracted text using Format 1');
+                    error_log('Successfully extracted text using Format 1. Text length: ' . strlen($text));
+                    error_log('Format 1 - First 500 chars: ' . substr($text, 0, 500));
+                    if (strlen($text) > 500) {
+                        error_log('Format 1 - Last 200 chars: ' . substr($text, -200));
+                    }
                 }
                 return $text;
             }
@@ -671,6 +677,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         
         if (self::DEBUG_MODE) {
             error_log('combineTextParts: processing ' . count($parts) . ' parts');
+            error_log('combineTextParts: full parts structure: ' . json_encode($parts, JSON_PRETTY_PRINT));
         }
         
         $text_parts = [];
@@ -679,21 +686,39 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 error_log("Part {$index}: " . json_encode($part));
             }
             
+            $part_text = '';
+            
             if (is_string($part)) {
                 // Handle case where part is directly a string
-                $text_parts[] = trim($part);
-            } elseif (isset($part['text']) && !empty(trim($part['text']))) {
-                $text_parts[] = trim($part['text']);
-            } elseif (isset($part['content']) && !empty(trim($part['content']))) {
+                $part_text = $part;
+            } elseif (isset($part['text'])) {
+                $part_text = $part['text'];
+            } elseif (isset($part['content'])) {
                 // Alternative content field
-                $text_parts[] = trim($part['content']);
+                $part_text = $part['content'];
+            }
+            
+            // Only add non-empty text parts after trimming
+            if (!empty(trim($part_text))) {
+                $text_parts[] = trim($part_text);
+                if (self::DEBUG_MODE) {
+                    error_log("Added part {$index} text (length: " . strlen(trim($part_text)) . "): " . substr(trim($part_text), 0, 100) . "...");
+                }
+            } else {
+                if (self::DEBUG_MODE) {
+                    error_log("Skipped empty part {$index}");
+                }
             }
         }
         
         $combined = implode(' ', $text_parts);
         if (self::DEBUG_MODE) {
+            error_log('combineTextParts: found ' . count($text_parts) . ' non-empty parts');
             error_log('combineTextParts: combined result length: ' . strlen($combined));
-            error_log('combineTextParts: first 200 chars: ' . substr($combined, 0, 200));
+            error_log('combineTextParts: first 500 chars: ' . substr($combined, 0, 500));
+            if (strlen($combined) > 500) {
+                error_log('combineTextParts: last 200 chars: ' . substr($combined, -200));
+            }
         }
         
         return $combined;

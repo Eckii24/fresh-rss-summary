@@ -38,29 +38,53 @@ function testGeminiModel($model, $api_key) {
         ];
     }
     
-    $data = [
-        'contents' => [
-            [
-                'parts' => [
-                    [
-                        'text' => 'Write a short summary of artificial intelligence in 2 sentences.'
-                    ]
-                ]
-            ]
-        ],
-        'generationConfig' => [
-            'temperature' => 0.7,
-            'maxOutputTokens' => 200,
-            'topP' => 0.9,
-            'topK' => 40
-        ]
-    ];
-
-    $json_data = json_encode($data);
-    
-    // Try each API version
+    // Try each API version with appropriate format
     foreach ($api_versions as $version => $url) {
         echo "  Testing {$version} API...\n";
+        
+        // Use different request format based on API version
+        if ($version === 'v1') {
+            // v1 API format - requires explicit role
+            $data = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            [
+                                'text' => 'Write a short summary of artificial intelligence in 2-3 sentences.'
+                            ]
+                        ]
+                    ]
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.7,
+                    'maxOutputTokens' => 200,
+                    'topP' => 0.9,
+                    'topK' => 40
+                ]
+            ];
+        } else {
+            // v1beta API format (original)
+            $data = [
+                'contents' => [
+                    [
+                        'parts' => [
+                            [
+                                'text' => 'Write a short summary of artificial intelligence in 2-3 sentences.'
+                            ]
+                        ]
+                    ]
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.7,
+                    'maxOutputTokens' => 200,
+                    'topP' => 0.9,
+                    'topK' => 40
+                ]
+            ];
+        }
+
+        $json_data = json_encode($data);
         
         $ch = curl_init();
         curl_setopt_array($ch, [
