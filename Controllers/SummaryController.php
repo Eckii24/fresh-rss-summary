@@ -234,11 +234,11 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
         $result = json_decode($response, true);
         
-        if (!$result || !isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new Exception('Invalid API response format');
+        if (!$result) {
+            throw new Exception('Invalid JSON response from Gemini API');
         }
-
-        return $result['candidates'][0]['content']['parts'][0]['text'];
+        
+        return $this->parseGeminiResponse($result);
     }
 
     private function htmlToText($html)
@@ -264,5 +264,68 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $text = trim($text);
         
         return $text;
+    }
+
+    private function parseGeminiResponse($result)
+    {
+        // Check for API error response
+        if (isset($result['error'])) {
+            $error_message = $result['error']['message'] ?? 'Unknown API error';
+            throw new Exception("Gemini API Error: {$error_message}");
+        }
+        
+        // Check for candidates array
+        if (!isset($result['candidates']) || !is_array($result['candidates']) || empty($result['candidates'])) {
+            throw new Exception('No candidates found in API response');
+        }
+        
+        $candidate = $result['candidates'][0];
+        
+        // Check for safety/content filtering
+        if (isset($candidate['finishReason'])) {
+            $finish_reason = $candidate['finishReason'];
+            if (in_array($finish_reason, ['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT'])) {
+                throw new Exception('Content was blocked by safety filters');
+            }
+            if ($finish_reason === 'MAX_TOKENS') {
+                // Content was truncated but might still be usable
+            }
+        }
+        
+        // Try to extract text from various possible response formats
+        
+        // Format 1: Standard format - candidates[0].content.parts[0].text
+        if (isset($candidate['content']['parts'][0]['text'])) {
+            return $this->combineTextParts($candidate['content']['parts']);
+        }
+        
+        // Format 2: Alternative format - candidates[0].parts[0].text
+        if (isset($candidate['parts'][0]['text'])) {
+            return $this->combineTextParts($candidate['parts']);
+        }
+        
+        // Format 3: Direct text in candidate
+        if (isset($candidate['text'])) {
+            return $candidate['text'];
+        }
+        
+        // If no text found, throw specific error
+        throw new Exception('No text content found in API response');
+    }
+
+    private function combineTextParts($parts)
+    {
+        if (!is_array($parts)) {
+            return '';
+        }
+        
+        $text_parts = [];
+        foreach ($parts as $part) {
+            if (isset($part['text']) && !empty(trim($part['text']))) {
+                $text_parts[] = trim($part['text']);
+            }
+        }
+        
+        return implode(' ', $text_parts);
     }
 }
