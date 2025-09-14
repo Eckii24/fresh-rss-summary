@@ -128,23 +128,49 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $video_context .= "\nNote: This is a YouTube video. Please provide a summary based on the video title and description, ";
         $video_context .= "focusing on the main topics, key points, and overall content theme.";
         
-        $data = [
-            'contents' => [
-                [
-                    'parts' => [
-                        [
-                            'text' => $prompt . "\n\n" . $video_context
+        // Use different request format based on API version
+        $is_v1_model = in_array($model, self::V1_MODELS);
+        
+        if ($is_v1_model) {
+            // v1 API format - requires explicit role
+            $data = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            [
+                                'text' => $prompt . "\n\n" . $video_context
+                            ]
                         ]
                     ]
+                ],
+                'generationConfig' => [
+                    'temperature' => $temperature,
+                    'maxOutputTokens' => $max_tokens,
+                    'topP' => 0.9,
+                    'topK' => 40
                 ]
-            ],
-            'generationConfig' => [
-                'temperature' => $temperature,
-                'maxOutputTokens' => $max_tokens,
-                'topP' => 0.9,
-                'topK' => 40
-            ]
-        ];
+            ];
+        } else {
+            // v1beta API format (original)
+            $data = [
+                'contents' => [
+                    [
+                        'parts' => [
+                            [
+                                'text' => $prompt . "\n\n" . $video_context
+                            ]
+                        ]
+                    ]
+                ],
+                'generationConfig' => [
+                    'temperature' => $temperature,
+                    'maxOutputTokens' => $max_tokens,
+                    'topP' => 0.9,
+                    'topK' => 40
+                ]
+            ];
+        }
 
         return $this->callGeminiAPI($url, $data);
     }
@@ -203,23 +229,49 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         // Convert HTML to plain text for better processing
         $text_content = $this->htmlToText($content);
         
-        $data = [
-            'contents' => [
-                [
-                    'parts' => [
-                        [
-                            'text' => $prompt . "\n\n" . $text_content
+        // Use different request format based on API version
+        $is_v1_model = in_array($model, self::V1_MODELS);
+        
+        if ($is_v1_model) {
+            // v1 API format - requires explicit role
+            $data = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            [
+                                'text' => $prompt . "\n\n" . $text_content
+                            ]
                         ]
                     ]
+                ],
+                'generationConfig' => [
+                    'temperature' => $temperature,
+                    'maxOutputTokens' => $max_tokens,
+                    'topP' => 0.9,
+                    'topK' => 40
                 ]
-            ],
-            'generationConfig' => [
-                'temperature' => $temperature,
-                'maxOutputTokens' => $max_tokens,
-                'topP' => 0.9,
-                'topK' => 40
-            ]
-        ];
+            ];
+        } else {
+            // v1beta API format (original)
+            $data = [
+                'contents' => [
+                    [
+                        'parts' => [
+                            [
+                                'text' => $prompt . "\n\n" . $text_content
+                            ]
+                        ]
+                    ]
+                ],
+                'generationConfig' => [
+                    'temperature' => $temperature,
+                    'maxOutputTokens' => $max_tokens,
+                    'topP' => 0.9,
+                    'topK' => 40
+                ]
+            ];
+        }
 
         return $this->callGeminiAPI($url, $data);
     }
@@ -247,12 +299,31 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             }
         }
         
-        // If primary format failed, try alternative request formats for newer models
-        if (self::DEBUG_MODE) {
-            error_log('Primary request format failed, trying alternative formats...');
+        // If primary format failed, try alternative API version first
+        $alternative_url = $this->getAlternativeApiUrl($url);
+        if ($alternative_url !== $url) {
+            if (self::DEBUG_MODE) {
+                error_log("Trying alternative API endpoint: {$alternative_url}");
+            }
+            
+            $result = $this->makeGeminiRequest($alternative_url, $data);
+            if ($result !== null) {
+                try {
+                    return $this->parseGeminiResponse($result);
+                } catch (Exception $e) {
+                    if (self::DEBUG_MODE) {
+                        error_log('Alternative API endpoint failed during parsing: ' . $e->getMessage());
+                    }
+                }
+            }
         }
         
-        // Try multiple alternative formats
+        // If API endpoint switching failed, try alternative request formats
+        if (self::DEBUG_MODE) {
+            error_log('API endpoint switching failed, trying alternative request formats...');
+        }
+        
+        // Try multiple alternative formats with original URL
         for ($i = 0; $i < 3; $i++) {
             $alternative_data = $this->getAlternativeRequestFormat($data, $i);
             if ($alternative_data === $data) {
@@ -276,7 +347,18 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             }
         }
         
-        throw new Exception('All request formats failed. This may indicate the model is not available or the API endpoint is incorrect.');
+        throw new Exception('All request formats and API endpoints failed. This may indicate the model is not available or the API configuration is incorrect.');
+    }
+    
+    private function getAlternativeApiUrl($original_url)
+    {
+        // Switch between v1 and v1beta APIs
+        if (strpos($original_url, '/v1beta/') !== false) {
+            return str_replace('/v1beta/', '/v1/', $original_url);
+        } elseif (strpos($original_url, '/v1/') !== false) {
+            return str_replace('/v1/', '/v1beta/', $original_url);
+        }
+        return $original_url;
     }
     
     private function makeGeminiRequest($url, $data)
@@ -355,22 +437,14 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
     
     private function getAlternativeRequestFormat($original_data, $alternative_index = 0)
     {
-        // Alternative format that some newer models might expect
+        // Alternative formats for different API versions and models
         if (isset($original_data['contents'][0]['parts'][0]['text'])) {
             $text = $original_data['contents'][0]['parts'][0]['text'];
             
-            // For v1 API, try different request structures
             $alternatives = [];
             
-            // Alternative 0: Simplified format used by some newer models
+            // Alternative 0: v1 API format with explicit role
             $alternatives[0] = [
-                'prompt' => [
-                    'text' => $text
-                ]
-            ];
-            
-            // Alternative 1: Single part format with explicit role (for v1 API)
-            $alternatives[1] = [
                 'contents' => [
                     [
                         'role' => 'user',
@@ -381,7 +455,14 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 ]
             ];
             
-            // Alternative 2: Direct text format
+            // Alternative 1: Simplified format (some models might expect this)
+            $alternatives[1] = [
+                'prompt' => [
+                    'text' => $text
+                ]
+            ];
+            
+            // Alternative 2: Text completion format (legacy API style)
             $alternatives[2] = [
                 'input' => [
                     'text' => $text
@@ -392,9 +473,22 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             if (isset($alternatives[$alternative_index])) {
                 $alternative = $alternatives[$alternative_index];
                 
-                // Copy generation config if present
+                // Copy generation config if present and adjust for API version
                 if (isset($original_data['generationConfig'])) {
-                    $alternative['generationConfig'] = $original_data['generationConfig'];
+                    $gen_config = $original_data['generationConfig'];
+                    
+                    // For v1 API, some parameter names might be different
+                    if ($alternative_index === 0) {
+                        // Ensure compatibility with v1 API
+                        $alternative['generationConfig'] = [
+                            'temperature' => $gen_config['temperature'] ?? 0.7,
+                            'maxOutputTokens' => $gen_config['maxOutputTokens'] ?? 1024,
+                            'topP' => $gen_config['topP'] ?? 0.9,
+                            'topK' => $gen_config['topK'] ?? 40
+                        ];
+                    } else {
+                        $alternative['generationConfig'] = $gen_config;
+                    }
                 }
                 
                 if (self::DEBUG_MODE) {
