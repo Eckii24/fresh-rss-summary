@@ -234,6 +234,30 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             error_log('Gemini API Request Data: ' . $json_data);
         }
         
+        // Try the primary request format first
+        $result = $this->makeGeminiRequest($url, $data);
+        if ($result !== null) {
+            return $this->parseGeminiResponse($result);
+        }
+        
+        // If primary format failed, try alternative request format for newer models
+        if (self::DEBUG_MODE) {
+            error_log('Primary request format failed, trying alternative format...');
+        }
+        
+        $alternative_data = $this->getAlternativeRequestFormat($data);
+        $result = $this->makeGeminiRequest($url, $alternative_data);
+        if ($result !== null) {
+            return $this->parseGeminiResponse($result);
+        }
+        
+        throw new Exception('Both primary and alternative request formats failed');
+    }
+    
+    private function makeGeminiRequest($url, $data)
+    {
+        $json_data = json_encode($data);
+        
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
@@ -264,7 +288,11 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         curl_close($ch);
 
         if ($http_code !== 200) {
-            throw new Exception("API Error: HTTP {$http_code} - {$response}");
+            if (self::DEBUG_MODE) {
+                error_log("API request failed with HTTP {$http_code}");
+            }
+            // Return null to try alternative format instead of throwing immediately
+            return null;
         }
 
         $result = json_decode($response, true);
@@ -273,7 +301,31 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             throw new Exception('Invalid JSON response from Gemini API: ' . $response);
         }
         
-        return $this->parseGeminiResponse($result);
+        return $result;
+    }
+    
+    private function getAlternativeRequestFormat($original_data)
+    {
+        // Alternative format that some newer models might expect
+        if (isset($original_data['contents'][0]['parts'][0]['text'])) {
+            $text = $original_data['contents'][0]['parts'][0]['text'];
+            
+            // Try simplified format
+            $alternative = [
+                'prompt' => [
+                    'text' => $text
+                ]
+            ];
+            
+            // Copy generation config if present
+            if (isset($original_data['generationConfig'])) {
+                $alternative['generationConfig'] = $original_data['generationConfig'];
+            }
+            
+            return $alternative;
+        }
+        
+        return $original_data;
     }
 
     private function htmlToText($html)
