@@ -31,6 +31,9 @@ An AI-powered article summarization extension for FreshRSS using Google Gemini, 
 
 ### API Key
 Get your free Google Gemini API key from [Google AI Studio](https://ai.google.dev/). The extension supports all Gemini models including:
+- Gemini 2.5 Flash (latest, recommended for speed)
+- Gemini 2.5 Pro (latest premium model)
+- Gemini 2.0 Flash (fast processing)
 - Gemini 1.5 Flash (recommended for speed)
 - Gemini 1.5 Pro (better quality)
 - Gemini Pro (legacy)

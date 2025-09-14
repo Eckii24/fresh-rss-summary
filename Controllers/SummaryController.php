@@ -15,7 +15,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
         // Get configuration
         $api_key = FreshRSS_Context::$user_conf->gemini_api_key ?? '';
-        $model = FreshRSS_Context::$user_conf->gemini_model ?? 'gemini-1.5-flash';
+        $model = FreshRSS_Context::$user_conf->gemini_model ?? 'gemini-2.5-flash';
         $general_prompt = FreshRSS_Context::$user_conf->gemini_general_prompt ?? 'Please provide a concise summary of the following article content:';
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
