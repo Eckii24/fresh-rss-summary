@@ -3,10 +3,17 @@
 class FreshExtension_Summary_Controller extends Minz_ActionController
 {
     private const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+    private const GEMINI_API_BASE_V1 = 'https://generativelanguage.googleapis.com/v1';
     private const YOUTUBE_PATTERNS = [
         '/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/',
         '/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/',
     ];
+    
+    // Set to true to enable debug logging for troubleshooting API response issues
+    private const DEBUG_MODE = false;
+    
+    // Models that might need v1 API instead of v1beta
+    private const V1_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'];
 
     public function summarizeAction()
     {
@@ -76,6 +83,23 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
         return null;
     }
+    
+    private function getApiUrl($model)
+    {
+        // Use v1 API for newer models that might not be available in v1beta
+        if (in_array($model, self::V1_MODELS)) {
+            if (self::DEBUG_MODE) {
+                error_log("Using v1 API for model: {$model}");
+            }
+            return self::GEMINI_API_BASE_V1;
+        }
+        
+        // Use v1beta for older/standard models
+        if (self::DEBUG_MODE) {
+            error_log("Using v1beta API for model: {$model}");
+        }
+        return self::GEMINI_API_BASE;
+    }
 
     private function summarizeYouTubeVideo($video_id, $prompt, $api_key, $model, $max_tokens, $temperature)
     {
@@ -89,7 +113,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         // Get video metadata for better context
         $video_info = $this->getYouTubeVideoInfo($video_id);
         
-        $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
+        $url = $this->getApiUrl($model) . "/models/{$model}:generateContent?key={$api_key}";
         
         $video_context = "YouTube Video Analysis Request\n";
         $video_context .= "Video URL: {$youtube_url}\n";
@@ -174,7 +198,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
     private function summarizeTextContent($content, $prompt, $api_key, $model, $max_tokens, $temperature)
     {
-        $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
+        $url = $this->getApiUrl($model) . "/models/{$model}:generateContent?key={$api_key}";
         
         // Convert HTML to plain text for better processing
         $text_content = $this->htmlToText($content);
@@ -205,8 +229,10 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $json_data = json_encode($data);
         
         // Debug: Log the request for troubleshooting
-        error_log('Gemini API Request URL: ' . $url);
-        error_log('Gemini API Request Data: ' . $json_data);
+        if (self::DEBUG_MODE) {
+            error_log('Gemini API Request URL: ' . $url);
+            error_log('Gemini API Request Data: ' . $json_data);
+        }
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -226,7 +252,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         
         // Debug: Log the raw response
-        error_log('Gemini API Raw Response (HTTP ' . $http_code . '): ' . $response);
+        if (self::DEBUG_MODE) {
+            error_log('Gemini API Raw Response (HTTP ' . $http_code . '): ' . $response);
+        }
         
         if (curl_error($ch)) {
             curl_close($ch);
@@ -276,7 +304,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
     private function parseGeminiResponse($result)
     {
         // Add debug logging for response structure
-        error_log('Gemini API Response Structure: ' . json_encode($result, JSON_PRETTY_PRINT));
+        if (self::DEBUG_MODE) {
+            error_log('Gemini API Response Structure: ' . json_encode($result, JSON_PRETTY_PRINT));
+        }
         
         // Check for API error response
         if (isset($result['error'])) {
@@ -290,7 +320,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
         
         $candidate = $result['candidates'][0];
-        error_log('First candidate structure: ' . json_encode($candidate, JSON_PRETTY_PRINT));
+        if (self::DEBUG_MODE) {
+            error_log('First candidate structure: ' . json_encode($candidate, JSON_PRETTY_PRINT));
+        }
         
         // Check for safety/content filtering
         if (isset($candidate['finishReason'])) {
@@ -300,7 +332,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             }
             if ($finish_reason === 'MAX_TOKENS') {
                 // Content was truncated but might still be usable
-                error_log('Warning: Content was truncated due to MAX_TOKENS');
+                if (self::DEBUG_MODE) {
+                    error_log('Warning: Content was truncated due to MAX_TOKENS');
+                }
             }
         }
         
@@ -310,7 +344,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         if (isset($candidate['content']['parts']) && is_array($candidate['content']['parts'])) {
             $text = $this->combineTextParts($candidate['content']['parts']);
             if (!empty($text)) {
-                error_log('Successfully extracted text using Format 1');
+                if (self::DEBUG_MODE) {
+                    error_log('Successfully extracted text using Format 1');
+                }
                 return $text;
             }
         }
@@ -319,32 +355,50 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         if (isset($candidate['parts']) && is_array($candidate['parts'])) {
             $text = $this->combineTextParts($candidate['parts']);
             if (!empty($text)) {
-                error_log('Successfully extracted text using Format 2');
+                if (self::DEBUG_MODE) {
+                    error_log('Successfully extracted text using Format 2');
+                }
                 return $text;
             }
         }
         
         // Format 3: Direct text in candidate
         if (isset($candidate['text']) && !empty($candidate['text'])) {
-            error_log('Successfully extracted text using Format 3');
+            if (self::DEBUG_MODE) {
+                error_log('Successfully extracted text using Format 3');
+            }
             return $candidate['text'];
         }
         
         // Format 4: Check for output property (newer API version)
         if (isset($candidate['output']) && !empty($candidate['output'])) {
-            error_log('Successfully extracted text using Format 4 (output)');
+            if (self::DEBUG_MODE) {
+                error_log('Successfully extracted text using Format 4 (output)');
+            }
             return $candidate['output'];
+        }
+        
+        // Format 5: Check for message content (alternative structure)
+        if (isset($candidate['message']['content']) && !empty($candidate['message']['content'])) {
+            if (self::DEBUG_MODE) {
+                error_log('Successfully extracted text using Format 5 (message.content)');
+            }
+            return $candidate['message']['content'];
         }
         
         // Format 6: Check for candidates[0].content.text (direct text in content)
         if (isset($candidate['content']['text']) && !empty($candidate['content']['text'])) {
-            error_log('Successfully extracted text using Format 6 (content.text)');
+            if (self::DEBUG_MODE) {
+                error_log('Successfully extracted text using Format 6 (content.text)');
+            }
             return $candidate['content']['text'];
         }
         
         // Format 7: Check if content is directly a string
         if (isset($candidate['content']) && is_string($candidate['content'])) {
-            error_log('Successfully extracted text using Format 7 (content as string)');
+            if (self::DEBUG_MODE) {
+                error_log('Successfully extracted text using Format 7 (content as string)');
+            }
             return $candidate['content'];
         }
         
@@ -352,7 +406,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $potential_text_fields = ['response', 'generated_text', 'completion', 'answer'];
         foreach ($potential_text_fields as $field) {
             if (isset($candidate[$field]) && !empty($candidate[$field])) {
-                error_log("Successfully extracted text using Format 8 ({$field})");
+                if (self::DEBUG_MODE) {
+                    error_log("Successfully extracted text using Format 8 ({$field})");
+                }
                 return $candidate[$field];
             }
         }
@@ -369,15 +425,21 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
     private function combineTextParts($parts)
     {
         if (!is_array($parts)) {
-            error_log('combineTextParts: parts is not an array: ' . gettype($parts));
+            if (self::DEBUG_MODE) {
+                error_log('combineTextParts: parts is not an array: ' . gettype($parts));
+            }
             return '';
         }
         
-        error_log('combineTextParts: processing ' . count($parts) . ' parts');
+        if (self::DEBUG_MODE) {
+            error_log('combineTextParts: processing ' . count($parts) . ' parts');
+        }
         
         $text_parts = [];
         foreach ($parts as $index => $part) {
-            error_log("Part {$index}: " . json_encode($part));
+            if (self::DEBUG_MODE) {
+                error_log("Part {$index}: " . json_encode($part));
+            }
             
             if (is_string($part)) {
                 // Handle case where part is directly a string
@@ -391,8 +453,10 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
         
         $combined = implode(' ', $text_parts);
-        error_log('combineTextParts: combined result length: ' . strlen($combined));
-        error_log('combineTextParts: first 200 chars: ' . substr($combined, 0, 200));
+        if (self::DEBUG_MODE) {
+            error_log('combineTextParts: combined result length: ' . strlen($combined));
+            error_log('combineTextParts: first 200 chars: ' . substr($combined, 0, 200));
+        }
         
         return $combined;
     }

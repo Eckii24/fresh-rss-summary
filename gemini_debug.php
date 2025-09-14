@@ -20,7 +20,23 @@ $models_to_test = [
 ];
 
 function testGeminiModel($model, $api_key) {
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}";
+    // Test both API versions for newer models
+    $api_versions = [];
+    
+    // Newer models that might need v1 API
+    $v1_models = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'];
+    
+    if (in_array($model, $v1_models)) {
+        $api_versions = [
+            'v1' => "https://generativelanguage.googleapis.com/v1/models/{$model}:generateContent?key={$api_key}",
+            'v1beta' => "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}"
+        ];
+    } else {
+        $api_versions = [
+            'v1beta' => "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}",
+            'v1' => "https://generativelanguage.googleapis.com/v1/models/{$model}:generateContent?key={$api_key}"
+        ];
+    }
     
     $data = [
         'contents' => [
@@ -42,41 +58,52 @@ function testGeminiModel($model, $api_key) {
 
     $json_data = json_encode($data);
     
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $json_data,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Content-Length: ' . strlen($json_data)
-        ],
-        CURLOPT_TIMEOUT => 30,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
+    // Try each API version
+    foreach ($api_versions as $version => $url) {
+        echo "  Testing {$version} API...\n";
+        
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $json_data,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($json_data)
+            ],
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
 
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    
-    if (curl_error($ch)) {
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        
+        if (curl_error($ch)) {
+            curl_close($ch);
+            echo "    ❌ CURL Error: " . curl_error($ch) . "\n";
+            continue;
+        }
+        
         curl_close($ch);
-        return ['error' => 'CURL Error: ' . curl_error($ch)];
-    }
-    
-    curl_close($ch);
 
-    if ($http_code !== 200) {
-        return ['error' => "HTTP {$http_code}: {$response}"];
-    }
+        if ($http_code !== 200) {
+            echo "    ❌ HTTP {$http_code}: {$response}\n";
+            continue;
+        }
 
-    $result = json_decode($response, true);
-    
-    if (!$result) {
-        return ['error' => 'Invalid JSON response'];
+        $result = json_decode($response, true);
+        
+        if (!$result) {
+            echo "    ❌ Invalid JSON response\n";
+            continue;
+        }
+        
+        echo "    ✅ Success with {$version} API!\n";
+        return ['result' => $result, 'api_version' => $version];
     }
     
-    return $result;
+    return ['error' => 'Failed with all API versions'];
 }
 
 if ($api_key === 'your-api-key-here') {
@@ -96,12 +123,15 @@ foreach ($models_to_test as $model) {
         continue;
     }
     
-    echo "✅ Success! Response structure:\n";
-    echo json_encode($result, JSON_PRETTY_PRINT) . "\n";
+    $api_version = $result['api_version'];
+    $response_data = $result['result'];
+    
+    echo "✅ Success with {$api_version} API! Response structure:\n";
+    echo json_encode($response_data, JSON_PRETTY_PRINT) . "\n";
     
     // Analyze the structure
-    if (isset($result['candidates'][0])) {
-        $candidate = $result['candidates'][0];
+    if (isset($response_data['candidates'][0])) {
+        $candidate = $response_data['candidates'][0];
         echo "\n--- Analysis ---\n";
         echo "Candidate keys: " . implode(', ', array_keys($candidate)) . "\n";
         
