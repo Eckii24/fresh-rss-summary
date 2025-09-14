@@ -10,7 +10,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
     ];
     
     // Set to true to enable debug logging for troubleshooting API response issues
-    private const DEBUG_MODE = true;
+    private const DEBUG_MODE = false;
     
     // Models that might need v1 API instead of v1beta
     private const V1_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'];
