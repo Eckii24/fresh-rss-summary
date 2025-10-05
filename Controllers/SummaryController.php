@@ -20,6 +20,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
         $temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
+        $fetch_article_url = FreshRSS_Context::$user_conf->gemini_fetch_article_url ?? false;
 
         // Validate configuration
         if (empty($api_key) || empty($model)) {
@@ -50,7 +51,12 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             if ($youtube_video_id) {
                 $summary = $this->summarizeYouTubeVideo($youtube_video_id, $youtube_prompt, $api_key, $model, $max_tokens, $temperature);
             } else {
-                $summary = $this->summarizeTextContent($content, $general_prompt, $api_key, $model, $max_tokens, $temperature);
+                // For non-YouTube articles, check if we should fetch URL content
+                if ($fetch_article_url) {
+                    $summary = $this->summarizeArticleUrl($article_url, $general_prompt, $api_key, $model, $max_tokens, $temperature);
+                } else {
+                    $summary = $this->summarizeTextContent($content, $general_prompt, $api_key, $model, $max_tokens, $temperature);
+                }
             }
 
             echo json_encode([
@@ -170,6 +176,66 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
         
         return null;
+    }
+
+    private function summarizeArticleUrl($url, $prompt, $api_key, $model, $max_tokens, $temperature)
+    {
+        // Fetch article content from URL
+        $article_content = $this->fetchUrlContent($url);
+        
+        if (!$article_content) {
+            throw new Exception('Failed to fetch content from URL');
+        }
+        
+        $api_url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
+        
+        $data = [
+            'contents' => [
+                [
+                    'parts' => [
+                        [
+                            'text' => $prompt . "\n\nArticle URL: {$url}\n\n" . $article_content
+                        ]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => $temperature,
+                'maxOutputTokens' => $max_tokens,
+                'topP' => 0.9,
+                'topK' => 40
+            ]
+        ];
+
+        return $this->callGeminiAPI($api_url, $data);
+    }
+
+    private function fetchUrlContent($url)
+    {
+        try {
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+            
+            $html = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($http_code === 200 && $html) {
+                // Convert HTML to plain text
+                return $this->htmlToText($html);
+            }
+            
+            return null;
+        } catch (Exception $e) {
+            return null;
+        }
     }
 
     private function summarizeTextContent($content, $prompt, $api_key, $model, $max_tokens, $temperature)

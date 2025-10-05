@@ -5,6 +5,7 @@ $gemini_general_prompt = FreshRSS_Context::$user_conf->gemini_general_prompt ?? 
 $gemini_youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
 $gemini_max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
 $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
+$gemini_fetch_article_url = FreshRSS_Context::$user_conf->gemini_fetch_article_url ?? false;
 ?>
 
 <form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post">
@@ -52,6 +53,14 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
         <label for="gemini_temperature">Temperature (Creativity):</label>
         <input type="number" name="gemini_temperature" id="gemini_temperature" value="<?php echo htmlspecialchars($gemini_temperature); ?>" min="0" max="2" step="0.1" style="width: 120px;">
         <small>Controls randomness: 0.0 (focused) to 2.0 (creative). Recommended: 0.7</small>
+    </div>
+    
+    <div class="form-group">
+        <label>
+            <input type="checkbox" name="gemini_fetch_article_url" id="gemini_fetch_article_url" value="1" <?php echo ($gemini_fetch_article_url ? 'checked' : ''); ?>>
+            Fetch article content from URL
+        </label>
+        <small>When enabled, the extension will fetch content directly from the article URL instead of using FreshRSS content. This is useful when FreshRSS doesn't have the full article content.</small>
     </div>
     
     <hr />
