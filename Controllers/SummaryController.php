@@ -180,7 +180,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $text_content = $this->htmlToText($content);
         
         // Append the article URL to the prompt as requested
-        $full_prompt = $prompt . "\n\n" . $text_content . "\n\nURL: " . $article_url;
+        // Sanitize URL to prevent any potential issues with special characters
+        $sanitized_url = filter_var($article_url, FILTER_SANITIZE_URL);
+        $full_prompt = $prompt . "\n\n" . $text_content . "\n\nURL: " . $sanitized_url;
         
         $data = [
             'contents' => [
