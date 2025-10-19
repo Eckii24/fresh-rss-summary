@@ -43,7 +43,7 @@ class SummaryExtension extends Minz_Extension
             // If custom is selected and custom_model is provided, use it
             if ($selected_model === 'custom' && !empty($custom_model)) {
                 FreshRSS_Context::$user_conf->gemini_model = trim($custom_model);
-            } else if ($selected_model !== 'custom') {
+            } else {
                 FreshRSS_Context::$user_conf->gemini_model = $selected_model;
             }
             
