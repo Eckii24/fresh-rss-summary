@@ -118,7 +118,13 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             'generationConfig' => [
                 'temperature' => $temperature,
                 'maxOutputTokens' => $max_tokens,
-                'topP' => 0.9
+                'topP' => 0.9,
+                'responseMimeType' => 'text/plain'
+            ],
+            'toolConfig' => [
+                'functionCallingConfig' => [
+                    'mode' => 'NONE'
+                ]
             ]
         ];
 
@@ -210,7 +216,13 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             'generationConfig' => [
                 'temperature' => $temperature,
                 'maxOutputTokens' => $max_tokens,
-                'topP' => 0.9
+                'topP' => 0.9,
+                'responseMimeType' => 'text/plain'
+            ],
+            'toolConfig' => [
+                'functionCallingConfig' => [
+                    'mode' => 'NONE'
+                ]
             ]
         ];
 
@@ -261,14 +273,29 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
 
         $all_text = [];
+        $part_types = [];
         if (isset($result['candidates']) && is_array($result['candidates'])) {
             foreach ($result['candidates'] as $cand) {
-                if (!isset($cand['content']['parts']) || !is_array($cand['content']['parts'])) {
+                // Some SDKs expose a top-level text shortcut
+                if (isset($cand['text']) && is_string($cand['text']) && $cand['text'] !== '') {
+                    $all_text[] = $cand['text'];
+                }
+                if (!isset($cand['content'])) {
                     continue;
                 }
-                foreach ($cand['content']['parts'] as $part) {
-                    if (isset($part['text']) && is_string($part['text'])) {
-                        $all_text[] = $part['text'];
+                $content = $cand['content'];
+                if (isset($content['parts']) && is_array($content['parts'])) {
+                    foreach ($content['parts'] as $part) {
+                        if (isset($part['text']) && is_string($part['text']) && $part['text'] !== '') {
+                            $all_text[] = $part['text'];
+                        } else {
+                            // Track non-text part types for diagnostics
+                            foreach ($part as $k => $_v) {
+                                if ($k !== 'text') {
+                                    $part_types[$k] = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -283,7 +310,15 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             throw new Exception('Model returned no content (blocked: ' . $reason . ')');
         }
 
-        throw new Exception('Invalid API response format (no candidates text)');
+        // Enhance error with basic diagnostics to help identify format
+        $cand_count = isset($result['candidates']) && is_array($result['candidates']) ? count($result['candidates']) : 0;
+        $types_list = implode(',', array_keys($part_types));
+        $finish = '';
+        if ($cand_count > 0 && isset($result['candidates'][0]['finishReason'])) {
+            $finish = (string)$result['candidates'][0]['finishReason'];
+        }
+        throw new Exception('Invalid API response format (no candidates text). candidates=' . $cand_count . ', finish=' . $finish . ', partTypes=' . $types_list);
+
     }
 
     private function buildGenerateContentUrl($model)
