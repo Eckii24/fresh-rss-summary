@@ -20,6 +20,13 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
         $temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
+        // Clamp values to sane ranges in case config holds out-of-range values
+        $max_tokens = (int)$max_tokens;
+        if ($max_tokens < 100) { $max_tokens = 100; }
+        if ($max_tokens > 4096) { $max_tokens = 4096; }
+        $temperature = (float)$temperature;
+        if ($temperature < 0.0) { $temperature = 0.0; }
+        if ($temperature > 2.0) { $temperature = 2.0; }
 
         // Validate configuration
         if (empty($api_key) || empty($model)) {
@@ -283,17 +290,41 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 if (!isset($cand['content'])) {
                     continue;
                 }
-                $content = $cand['content'];
-                if (isset($content['parts']) && is_array($content['parts'])) {
+                $contents = $cand['content'];
+                // Content can be an object or a list of content objects
+                $contentItems = [];
+                if (is_array($contents) && array_keys($contents) === range(0, count($contents) - 1)) {
+                    $contentItems = $contents; // list
+                } else {
+                    $contentItems = [$contents];
+                }
+                foreach ($contentItems as $content) {
+                    if (!isset($content['parts']) || !is_array($content['parts'])) {
+                        continue;
+                    }
                     foreach ($content['parts'] as $part) {
-                        if (isset($part['text']) && is_string($part['text']) && $part['text'] !== '') {
-                            $all_text[] = $part['text'];
-                        } else {
-                            // Track non-text part types for diagnostics
-                            foreach ($part as $k => $_v) {
-                                if ($k !== 'text') {
-                                    $part_types[$k] = true;
+                        if (isset($part['text'])) {
+                            if (is_string($part['text']) && $part['text'] !== '') {
+                                $all_text[] = $part['text'];
+                            }
+                            continue;
+                        }
+                        if (isset($part['inlineData']['mimeType']) && isset($part['inlineData']['data'])) {
+                            $mime = (string)$part['inlineData']['mimeType'];
+                            $data = (string)$part['inlineData']['data'];
+                            $part_types['inlineData:' . $mime] = true;
+                            if (stripos($mime, 'text/plain') === 0) {
+                                $decoded = base64_decode($data, true);
+                                if (is_string($decoded) && $decoded !== '') {
+                                    $all_text[] = $decoded;
                                 }
+                            }
+                            continue;
+                        }
+                        // Track other non-text part types
+                        foreach ($part as $k => $_v) {
+                            if ($k !== 'text') {
+                                $part_types[$k] = true;
                             }
                         }
                     }

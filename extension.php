@@ -41,8 +41,14 @@ class SummaryExtension extends Minz_Extension
             FreshRSS_Context::$user_conf->gemini_model = Minz_Request::param('gemini_model', 'gemini-2.5-flash');
             FreshRSS_Context::$user_conf->gemini_general_prompt = Minz_Request::param('gemini_general_prompt', '');
             FreshRSS_Context::$user_conf->gemini_youtube_prompt = Minz_Request::param('gemini_youtube_prompt', '');
-            FreshRSS_Context::$user_conf->gemini_max_tokens = (int)Minz_Request::param('gemini_max_tokens', 1024);
-            FreshRSS_Context::$user_conf->gemini_temperature = (float)Minz_Request::param('gemini_temperature', 0.7);
+            $maxTok = (int)Minz_Request::param('gemini_max_tokens', 1024);
+            if ($maxTok < 100) { $maxTok = 100; }
+            if ($maxTok > 4096) { $maxTok = 4096; }
+            FreshRSS_Context::$user_conf->gemini_max_tokens = $maxTok;
+            $temp = (float)Minz_Request::param('gemini_temperature', 0.7);
+            if ($temp < 0.0) { $temp = 0.0; }
+            if ($temp > 2.0) { $temp = 2.0; }
+            FreshRSS_Context::$user_conf->gemini_temperature = $temp;
             FreshRSS_Context::$user_conf->save();
         }
     }
