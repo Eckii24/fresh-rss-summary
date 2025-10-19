@@ -34,11 +34,18 @@ function configureSummaryButtons() {
 function handleSummaryButtonClick(button) {
     const container = button.parentNode;
     const contentDiv = container.querySelector('.gemini-summary-content');
+    const customPromptInput = container.querySelector('.gemini-custom-prompt');
     
     // If summary is already visible, toggle it
     if (contentDiv.classList.contains('visible')) {
         contentDiv.classList.remove('visible');
         button.textContent = 'Summary';
+        
+        // Restore input field to original state
+        if (customPromptInput) {
+            customPromptInput.disabled = false;
+            customPromptInput.classList.remove('hidden');
+        }
         return;
     }
     
@@ -57,6 +64,9 @@ async function fetchSummary(container, button) {
     const contentDiv = container.querySelector('.gemini-summary-content');
     const customPromptInput = container.querySelector('.gemini-custom-prompt');
     
+    // Check if there's a custom prompt value
+    const hasCustomPrompt = customPromptInput && customPromptInput.value.trim();
+    
     // Set loading state
     container.classList.add('loading');
     container.classList.remove('error', 'youtube');
@@ -72,7 +82,7 @@ async function fetchSummary(container, button) {
         formData.append('_csrf', context.csrf);
         
         // Add custom prompt if provided
-        if (customPromptInput && customPromptInput.value.trim()) {
+        if (hasCustomPrompt) {
             formData.append('custom_prompt', customPromptInput.value.trim());
         }
         
@@ -101,6 +111,17 @@ async function fetchSummary(container, button) {
         contentDiv.innerHTML = formatSummaryText(data.summary);
         button.textContent = 'Hide Summary';
         button.disabled = false;
+        
+        // Handle input field visibility/state based on whether custom prompt was used
+        if (customPromptInput) {
+            if (hasCustomPrompt) {
+                // If there was input, disable the field to show what was used
+                customPromptInput.disabled = true;
+            } else {
+                // If there was no input, hide the field
+                customPromptInput.classList.add('hidden');
+            }
+        }
         
     } catch (error) {
         console.error('Summary fetch error:', error);
