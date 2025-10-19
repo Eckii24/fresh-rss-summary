@@ -40,23 +40,19 @@ function handleSummaryButtonClick(button) {
     if (contentDiv.classList.contains('visible')) {
         contentDiv.classList.remove('visible');
         button.textContent = 'Summary';
-        
-        // Restore input field to original state
-        if (customPromptInput) {
-            customPromptInput.disabled = false;
-            customPromptInput.classList.remove('hidden');
-        }
+        // Don't restore input field - keep it in its current state (disabled/hidden)
         return;
     }
     
-    // If we already have content, just show it
+    // If we already have content (summary already created), just show it
     if (contentDiv.innerHTML && !container.classList.contains('error')) {
         contentDiv.classList.add('visible');
         button.textContent = 'Hide Summary';
+        // Don't change input field state - it should already be disabled/hidden
         return;
     }
     
-    // Otherwise, fetch the summary
+    // Otherwise, fetch the summary (summary not yet created)
     fetchSummary(container, button);
 }
 
@@ -74,6 +70,17 @@ async function fetchSummary(container, button) {
     button.textContent = 'Loading...';
     contentDiv.innerHTML = 'Generating summary...';
     contentDiv.classList.add('visible');
+    
+    // Handle input field state immediately during loading
+    if (customPromptInput) {
+        if (hasCustomPrompt) {
+            // If there was input, disable the field immediately during loading
+            customPromptInput.disabled = true;
+        } else {
+            // If there was no input, hide the field immediately during loading
+            customPromptInput.classList.add('hidden');
+        }
+    }
     
     try {
         const url = button.dataset.request;
@@ -112,16 +119,7 @@ async function fetchSummary(container, button) {
         button.textContent = 'Hide Summary';
         button.disabled = false;
         
-        // Handle input field visibility/state based on whether custom prompt was used
-        if (customPromptInput) {
-            if (hasCustomPrompt) {
-                // If there was input, disable the field to show what was used
-                customPromptInput.disabled = true;
-            } else {
-                // If there was no input, hide the field
-                customPromptInput.classList.add('hidden');
-            }
-        }
+        // Input field state is already set during loading, no need to change it here
         
     } catch (error) {
         console.error('Summary fetch error:', error);
@@ -132,6 +130,12 @@ async function fetchSummary(container, button) {
         contentDiv.innerHTML = `Error: ${error.message}`;
         button.textContent = 'Retry Summary';
         button.disabled = false;
+        
+        // On error, restore input field to editable state
+        if (customPromptInput) {
+            customPromptInput.disabled = false;
+            customPromptInput.classList.remove('hidden');
+        }
     }
 }
 
