@@ -17,6 +17,7 @@
 }
 
 .gemini-summary-btn {
+    display: block;
     background: #4285f4;
     color: white;
     border: none;
@@ -39,12 +40,12 @@
 }
 
 .gemini-custom-prompt {
+    display: block;
     width: 100%;
     padding: 10px;
     border: 1px solid #dee2e6;
     border-radius: 6px;
     font-size: 14px;
-    margin-top: 8px;
     margin-bottom: 12px;
     box-sizing: border-box;
     transition: border-color 0.2s ease;
