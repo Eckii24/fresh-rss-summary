@@ -17,6 +17,7 @@
 }
 
 .gemini-summary-btn {
+    display: block;
     background: #4285f4;
     color: white;
     border: none;
@@ -36,6 +37,54 @@
 .gemini-summary-btn:disabled {
     background: #9aa0a6;
     cursor: not-allowed;
+}
+
+.gemini-custom-prompt {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease;
+}
+
+.gemini-custom-prompt.hidden {
+    display: none;
+}
+
+.gemini-custom-prompt:disabled {
+    background: #f5f5f5;
+    color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.gemini-custom-prompt:focus {
+    outline: none;
+    border-color: #4285f4;
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .gemini-custom-prompt {
+        background: #1a202c;
+        border: 1px solid #4a5568;
+        color: #e2e8f0;
+    }
+    
+    .gemini-custom-prompt:disabled {
+        background: #2d3748;
+        color: #a0aec0;
+    }
+    
+    .gemini-custom-prompt:focus {
+        border-color: #4285f4;
+        box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+    }
 }
 
 .gemini-summary-content {

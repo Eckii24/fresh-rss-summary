@@ -34,27 +34,34 @@ function configureSummaryButtons() {
 function handleSummaryButtonClick(button) {
     const container = button.parentNode;
     const contentDiv = container.querySelector('.gemini-summary-content');
+    const customPromptInput = container.querySelector('.gemini-custom-prompt');
     
     // If summary is already visible, toggle it
     if (contentDiv.classList.contains('visible')) {
         contentDiv.classList.remove('visible');
         button.textContent = 'Summary';
+        // Don't restore input field - keep it in its current state (disabled/hidden)
         return;
     }
     
-    // If we already have content, just show it
+    // If we already have content (summary already created), just show it
     if (contentDiv.innerHTML && !container.classList.contains('error')) {
         contentDiv.classList.add('visible');
         button.textContent = 'Hide Summary';
+        // Don't change input field state - it should already be disabled/hidden
         return;
     }
     
-    // Otherwise, fetch the summary
+    // Otherwise, fetch the summary (summary not yet created)
     fetchSummary(container, button);
 }
 
 async function fetchSummary(container, button) {
     const contentDiv = container.querySelector('.gemini-summary-content');
+    const customPromptInput = container.querySelector('.gemini-custom-prompt');
+    
+    // Check if there's a custom prompt value
+    const hasCustomPrompt = customPromptInput && customPromptInput.value.trim();
     
     // Set loading state
     container.classList.add('loading');
@@ -64,11 +71,27 @@ async function fetchSummary(container, button) {
     contentDiv.innerHTML = 'Generating summary...';
     contentDiv.classList.add('visible');
     
+    // Handle input field state immediately during loading
+    if (customPromptInput) {
+        if (hasCustomPrompt) {
+            // If there was input, disable the field immediately during loading
+            customPromptInput.disabled = true;
+        } else {
+            // If there was no input, hide the field immediately during loading
+            customPromptInput.classList.add('hidden');
+        }
+    }
+    
     try {
         const url = button.dataset.request;
         const formData = new FormData();
         formData.append('ajax', 'true');
         formData.append('_csrf', context.csrf);
+        
+        // Add custom prompt if provided
+        if (hasCustomPrompt) {
+            formData.append('custom_prompt', customPromptInput.value.trim());
+        }
         
         const response = await fetch(url, {
             method: 'POST',
@@ -96,6 +119,8 @@ async function fetchSummary(container, button) {
         button.textContent = 'Hide Summary';
         button.disabled = false;
         
+        // Input field state is already set during loading, no need to change it here
+        
     } catch (error) {
         console.error('Summary fetch error:', error);
         
@@ -105,6 +130,12 @@ async function fetchSummary(container, button) {
         contentDiv.innerHTML = `Error: ${error.message}`;
         button.textContent = 'Retry Summary';
         button.disabled = false;
+        
+        // On error, restore input field to editable state
+        if (customPromptInput) {
+            customPromptInput.disabled = false;
+            customPromptInput.classList.remove('hidden');
+        }
     }
 }
 

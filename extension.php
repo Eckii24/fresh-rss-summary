@@ -30,6 +30,7 @@ class SummaryExtension extends Minz_Extension
         $entry->_content(
             '<div class="gemini-summary-wrap">'
             . '<button data-request="' . $url_summary . '" class="gemini-summary-btn">Summary</button>'
+            . '<input type="text" class="gemini-custom-prompt" placeholder="Optional: Enter your custom question or prompt here..." maxlength="1000" autocomplete="off" />'
             . '<div class="gemini-summary-content"></div>'
             . '</div>'
             . $entry->content()
