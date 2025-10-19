@@ -5,6 +5,10 @@ $gemini_general_prompt = FreshRSS_Context::$user_conf->gemini_general_prompt ?? 
 $gemini_youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
 $gemini_max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
 $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
+
+// Get models data from the extension (set in handleConfigureAction)
+$gemini_models = $GLOBALS['summary_extension_vars']['gemini_models'] ?? [];
+$gemini_models_error = $GLOBALS['summary_extension_vars']['gemini_models_error'] ?? '';
 ?>
 
 <form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post">
@@ -17,17 +21,35 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
         <input type="password" name="gemini_api_key" id="gemini_api_key" value="<?php echo htmlspecialchars($gemini_api_key); ?>" placeholder="Enter your Google Gemini API key" style="width: 100%; max-width: 400px;">
         <small>Get your API key from <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a></small>
     </div>
-    
+
     <div class="form-group">
         <label for="gemini_model">Gemini Model:</label>
         <select name="gemini_model" id="gemini_model">
-            <option value="gemini-2.5-flash" <?php echo ($gemini_model === 'gemini-2.5-flash' ? 'selected' : ''); ?>>Gemini 2.5 Flash (Latest Fast)</option>
-            <option value="gemini-2.5-pro" <?php echo ($gemini_model === 'gemini-2.5-pro' ? 'selected' : ''); ?>>Gemini 2.5 Pro (Latest Premium)</option>
-            <option value="gemini-2.0-flash" <?php echo ($gemini_model === 'gemini-2.0-flash' ? 'selected' : ''); ?>>Gemini 2.0 Flash</option>
-            <option value="gemini-1.5-flash" <?php echo ($gemini_model === 'gemini-1.5-flash' ? 'selected' : ''); ?>>Gemini 1.5 Flash (Fast)</option>
-            <option value="gemini-1.5-pro" <?php echo ($gemini_model === 'gemini-1.5-pro' ? 'selected' : ''); ?>>Gemini 1.5 Pro (Higher Quality)</option>
-            <option value="gemini-pro" <?php echo ($gemini_model === 'gemini-pro' ? 'selected' : ''); ?>>Gemini Pro (Legacy)</option>
+            <?php if (!empty($gemini_models)): ?>
+                <?php foreach ($gemini_models as $model_id => $label): ?>
+                    <?php
+                        $curr = (string)$gemini_model;
+                        $idA = preg_replace('#^models/#', '', (string)$model_id);
+                        $idB = preg_replace('#^models/#', '', $curr);
+                        $is_selected = ($curr === (string)$model_id) || ($idA === $idB);
+                    ?>
+                    <option value="<?php echo htmlspecialchars($model_id); ?>" <?php echo ($is_selected ? 'selected' : ''); ?> title="<?php echo htmlspecialchars($model_id); ?>"><?php echo htmlspecialchars($label ?: $model_id); ?></option>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <!-- Fallback static options when API key is missing or listing failed -->
+                <option value="gemini-2.5-flash" <?php echo ($gemini_model === 'gemini-2.5-flash' ? 'selected' : ''); ?>>Gemini 2.5 Flash (Latest Fast)</option>
+                <option value="gemini-2.5-pro" <?php echo ($gemini_model === 'gemini-2.5-pro' ? 'selected' : ''); ?>>Gemini 2.5 Pro (Latest Premium)</option>
+                <option value="gemini-2.0-flash" <?php echo ($gemini_model === 'gemini-2.0-flash' ? 'selected' : ''); ?>>Gemini 2.0 Flash</option>
+                <option value="gemini-1.5-flash" <?php echo ($gemini_model === 'gemini-1.5-flash' ? 'selected' : ''); ?>>Gemini 1.5 Flash (Fast)</option>
+                <option value="gemini-1.5-pro" <?php echo ($gemini_model === 'gemini-1.5-pro' ? 'selected' : ''); ?>>Gemini 1.5 Pro (Higher Quality)</option>
+                <option value="gemini-pro" <?php echo ($gemini_model === 'gemini-pro' ? 'selected' : ''); ?>>Gemini Pro (Legacy)</option>
+            <?php endif; ?>
         </select>
+        <?php if (!empty($gemini_models_error)): ?>
+            <small><?php echo htmlspecialchars($gemini_models_error); ?></small>
+        <?php elseif (empty($gemini_api_key)): ?>
+            <small>Enter your API key to load the latest models.</small>
+        <?php endif; ?>
     </div>
     
     <div class="form-group">

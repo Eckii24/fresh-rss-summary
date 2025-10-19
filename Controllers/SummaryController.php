@@ -1,5 +1,7 @@
 <?php
 
+require_once dirname(__DIR__) . '/GeminiConfig.php';
+
 class FreshExtension_Summary_Controller extends Minz_ActionController
 {
     private const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -20,6 +22,10 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
         $temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
+        
+        // Use shared clamping logic to ensure values are in valid ranges
+        $max_tokens = GeminiConfig::clampMaxTokens($max_tokens);
+        $temperature = GeminiConfig::clampTemperature($temperature);
 
         // Validate configuration
         if (empty($api_key) || empty($model)) {
@@ -89,7 +95,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         // Get video metadata for better context
         $video_info = $this->getYouTubeVideoInfo($video_id);
         
-        $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
+        $url = $this->buildGenerateContentUrl($model);
         
         $video_context = "YouTube Video Analysis Request\n";
         $video_context .= "Video URL: {$youtube_url}\n";
@@ -107,6 +113,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $data = [
             'contents' => [
                 [
+                    'role' => 'user',
                     'parts' => [
                         [
                             'text' => $prompt . "\n\n" . $video_context
@@ -118,11 +125,16 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 'temperature' => $temperature,
                 'maxOutputTokens' => $max_tokens,
                 'topP' => 0.9,
-                'topK' => 40
+                'responseMimeType' => 'text/plain'
+            ],
+            'toolConfig' => [
+                'functionCallingConfig' => [
+                    'mode' => 'NONE'
+                ]
             ]
         ];
 
-        return $this->callGeminiAPI($url, $data);
+        return $this->callGeminiAPI($url, $data, $api_key);
     }
     
     private function getYouTubeVideoInfo($video_id)
@@ -174,7 +186,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
     private function summarizeTextContent($content, $article_url, $prompt, $api_key, $model, $max_tokens, $temperature)
     {
-        $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
+        $url = $this->buildGenerateContentUrl($model);
         
         // Convert HTML to plain text for better processing
         $text_content = $this->htmlToText($content);
@@ -199,6 +211,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $data = [
             'contents' => [
                 [
+                    'role' => 'user',
                     'parts' => [
                         [
                             'text' => $full_prompt
@@ -210,14 +223,19 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 'temperature' => $temperature,
                 'maxOutputTokens' => $max_tokens,
                 'topP' => 0.9,
-                'topK' => 40
+                'responseMimeType' => 'text/plain'
+            ],
+            'toolConfig' => [
+                'functionCallingConfig' => [
+                    'mode' => 'NONE'
+                ]
             ]
         ];
 
-        return $this->callGeminiAPI($url, $data);
+        return $this->callGeminiAPI($url, $data, $api_key);
     }
 
-    private function callGeminiAPI($url, $data)
+    private function callGeminiAPI($url, $data, $api_key)
     {
         $json_data = json_encode($data);
         
@@ -229,7 +247,8 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             CURLOPT_POSTFIELDS => $json_data,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
-                'Content-Length: ' . strlen($json_data)
+                'Content-Length: ' . strlen($json_data),
+                'x-goog-api-key: ' . $api_key,
             ],
             CURLOPT_TIMEOUT => 30,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -239,8 +258,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         
         if (curl_error($ch)) {
+            $err = curl_error($ch);
             curl_close($ch);
-            throw new Exception('CURL Error: ' . curl_error($ch));
+            throw new Exception('CURL Error: ' . $err);
         }
         
         curl_close($ch);
@@ -250,12 +270,97 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
 
         $result = json_decode($response, true);
-        
-        if (!$result || !isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new Exception('Invalid API response format');
+        if (!is_array($result)) {
+            throw new Exception('Invalid API response (non-JSON)');
+        }
+        if (isset($result['error'])) {
+            $msg = $result['error']['message'] ?? 'Unknown API error';
+            throw new Exception('Gemini API error: ' . $msg);
         }
 
-        return $result['candidates'][0]['content']['parts'][0]['text'];
+        $all_text = [];
+        $part_types = [];
+        if (isset($result['candidates']) && is_array($result['candidates'])) {
+            foreach ($result['candidates'] as $cand) {
+                // Some SDKs expose a top-level text shortcut
+                if (isset($cand['text']) && is_string($cand['text']) && $cand['text'] !== '') {
+                    $all_text[] = $cand['text'];
+                }
+                if (!isset($cand['content'])) {
+                    continue;
+                }
+                $contents = $cand['content'];
+                // Content can be an object or a list of content objects
+                $contentItems = [];
+                if (is_array($contents) && array_keys($contents) === range(0, count($contents) - 1)) {
+                    $contentItems = $contents; // list
+                } else {
+                    $contentItems = [$contents];
+                }
+                foreach ($contentItems as $content) {
+                    if (!isset($content['parts']) || !is_array($content['parts'])) {
+                        continue;
+                    }
+                    foreach ($content['parts'] as $part) {
+                        if (isset($part['text'])) {
+                            if (is_string($part['text']) && $part['text'] !== '') {
+                                $all_text[] = $part['text'];
+                            }
+                            continue;
+                        }
+                        if (isset($part['inlineData']['mimeType']) && isset($part['inlineData']['data'])) {
+                            $mime = (string)$part['inlineData']['mimeType'];
+                            $data = (string)$part['inlineData']['data'];
+                            $part_types['inlineData:' . $mime] = true;
+                            if (stripos($mime, 'text/plain') === 0) {
+                                $decoded = base64_decode($data, true);
+                                if (is_string($decoded) && $decoded !== '') {
+                                    $all_text[] = $decoded;
+                                }
+                            }
+                            continue;
+                        }
+                        // Track other non-text part types
+                        foreach ($part as $k => $_v) {
+                            if ($k !== 'text') {
+                                $part_types[$k] = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!empty($all_text)) {
+            return trim(implode("\n\n", $all_text));
+        }
+
+        if (isset($result['promptFeedback']['blockReason'])) {
+            $reason = $result['promptFeedback']['blockReason'];
+            throw new Exception('Model returned no content (blocked: ' . $reason . ')');
+        }
+
+        // Enhance error with basic diagnostics to help identify format
+        $cand_count = isset($result['candidates']) && is_array($result['candidates']) ? count($result['candidates']) : 0;
+        $types_list = implode(',', array_keys($part_types));
+        $finish = '';
+        if ($cand_count > 0 && isset($result['candidates'][0]['finishReason'])) {
+            $finish = (string)$result['candidates'][0]['finishReason'];
+        }
+        throw new Exception('Invalid API response format (no candidates text). candidates=' . $cand_count . ', finish=' . $finish . ', partTypes=' . $types_list);
+
+    }
+
+    private function buildGenerateContentUrl($model)
+    {
+        $model = trim((string)$model);
+        if ($model === '') {
+            throw new Exception('Empty model identifier');
+        }
+        $path = (strpos($model, 'models/') === 0)
+            ? '/' . $model . ':generateContent'
+            : '/models/' . $model . ':generateContent';
+        return self::GEMINI_API_BASE . $path;
     }
 
     private function htmlToText($html)

@@ -1,5 +1,8 @@
 <?php
 
+require_once __DIR__ . '/GeminiConfig.php';
+require_once __DIR__ . '/GeminiModelService.php';
+
 class SummaryExtension extends Minz_Extension
 {
     protected array $csp_policies = [
@@ -41,9 +44,27 @@ class SummaryExtension extends Minz_Extension
             FreshRSS_Context::$user_conf->gemini_model = Minz_Request::param('gemini_model', 'gemini-2.5-flash');
             FreshRSS_Context::$user_conf->gemini_general_prompt = Minz_Request::param('gemini_general_prompt', '');
             FreshRSS_Context::$user_conf->gemini_youtube_prompt = Minz_Request::param('gemini_youtube_prompt', '');
-            FreshRSS_Context::$user_conf->gemini_max_tokens = (int)Minz_Request::param('gemini_max_tokens', 1024);
-            FreshRSS_Context::$user_conf->gemini_temperature = (float)Minz_Request::param('gemini_temperature', 0.7);
+            
+            // Use shared clamping logic
+            $maxTok = GeminiConfig::clampMaxTokens(Minz_Request::param('gemini_max_tokens', 1024));
+            FreshRSS_Context::$user_conf->gemini_max_tokens = $maxTok;
+            
+            $temp = GeminiConfig::clampTemperature(Minz_Request::param('gemini_temperature', 0.7));
+            FreshRSS_Context::$user_conf->gemini_temperature = $temp;
+            
             FreshRSS_Context::$user_conf->save();
         }
+        
+        // Prepare models data for the view
+        $api_key = FreshRSS_Context::$user_conf->gemini_api_key ?? '';
+        $modelData = GeminiModelService::getModels($api_key);
+        $this->registerViewVariable('gemini_models', $modelData['models']);
+        $this->registerViewVariable('gemini_models_error', $modelData['error']);
+    }
+    
+    private function registerViewVariable($name, $value)
+    {
+        // Store in a global that the view can access
+        $GLOBALS['summary_extension_vars'][$name] = $value;
     }
 }
