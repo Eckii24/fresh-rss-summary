@@ -23,10 +23,27 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
         <select name="gemini_model" id="gemini_model">
             <option value="gemini-2.0-flash-latest" <?php echo ($gemini_model === 'gemini-2.0-flash-latest' ? 'selected' : ''); ?>>Gemini 2.0 Flash Latest</option>
             <option value="gemini-2.0-pro-latest" <?php echo ($gemini_model === 'gemini-2.0-pro-latest' ? 'selected' : ''); ?>>Gemini 2.0 Pro Latest</option>
+            <option value="gemini-1.5-flash-latest" <?php echo ($gemini_model === 'gemini-1.5-flash-latest' ? 'selected' : ''); ?>>Gemini 1.5 Flash Latest (Fallback)</option>
+            <option value="gemini-1.5-pro-latest" <?php echo ($gemini_model === 'gemini-1.5-pro-latest' ? 'selected' : ''); ?>>Gemini 1.5 Pro Latest (Fallback)</option>
+            <option value="custom" <?php echo (!in_array($gemini_model, ['gemini-2.0-flash-latest', 'gemini-2.0-pro-latest', 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest']) ? 'selected' : ''); ?>>Custom Model Name</option>
         </select>
-        <small><strong>Note:</strong> Using latest Gemini 2.x models. If these models are not available yet in the API, you may need to use gemini-1.5-flash-latest or gemini-1.5-pro-latest instead.  
-        Check the <a href="https://ai.google.dev/gemini-api/docs/models/gemini" target="_blank">official Gemini models list</a> for currently available model names.</small>
+        <br>
+        <input type="text" name="gemini_model_custom" id="gemini_model_custom" value="<?php echo htmlspecialchars($gemini_model); ?>" placeholder="Enter custom model name" style="width: 100%; max-width: 400px; margin-top: 10px; <?php echo in_array($gemini_model, ['gemini-2.0-flash-latest', 'gemini-2.0-pro-latest', 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest']) ? 'display:none;' : ''; ?>" />
+        <small><strong>Note:</strong> For the most up-to-date list of available models, check the <a href="https://ai.google.dev/gemini-api/docs/models/gemini" target="_blank">official Gemini models list</a>. 
+        You can select "Custom Model Name" to enter any model name from the documentation (e.g., gemini-2.5-flash, gemini-exp-YYMM, etc.).</small>
     </div>
+    
+    <script>
+    document.getElementById('gemini_model').addEventListener('change', function() {
+        var customInput = document.getElementById('gemini_model_custom');
+        if (this.value === 'custom') {
+            customInput.style.display = 'block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    });
+    </script>
     
     <div class="form-group">
         <label for="gemini_general_prompt">General Articles Prompt:</label>
