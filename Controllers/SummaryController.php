@@ -107,6 +107,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $data = [
             'contents' => [
                 [
+                    'role' => 'user',
                     'parts' => [
                         [
                             'text' => $prompt . "\n\n" . $video_context
@@ -117,8 +118,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             'generationConfig' => [
                 'temperature' => $temperature,
                 'maxOutputTokens' => $max_tokens,
-                'topP' => 0.9,
-                'topK' => 40
+                'topP' => 0.9
             ]
         ];
 
@@ -199,6 +199,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $data = [
             'contents' => [
                 [
+                    'role' => 'user',
                     'parts' => [
                         [
                             'text' => $full_prompt
@@ -209,8 +210,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             'generationConfig' => [
                 'temperature' => $temperature,
                 'maxOutputTokens' => $max_tokens,
-                'topP' => 0.9,
-                'topK' => 40
+                'topP' => 0.9
             ]
         ];
 
