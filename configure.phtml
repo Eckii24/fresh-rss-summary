@@ -27,7 +27,7 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
             $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
             $pageToken = null;
             do {
-                $url = $baseUrl . '?pageSize=1000&key=' . urlencode($gemini_api_key);
+                $url = $baseUrl . '?pageSize=1000';
                 if (!empty($pageToken)) {
                     $url .= '&pageToken=' . urlencode($pageToken);
                 }
@@ -37,6 +37,9 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_TIMEOUT => 15,
                     CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_HTTPHEADER => [
+                        'x-goog-api-key: ' . $gemini_api_key,
+                    ],
                 ]);
                 $resp = curl_exec($ch);
                 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -55,9 +58,13 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
                         if (!in_array('generateContent', $supported, true)) {
                             continue; // Only show models that support generateContent
                         }
-                        $baseId = $m['baseModelId'] ?? null; // Pass this to generation requests
-                        $display = $m['displayName'] ?? $baseId;
-                        if ($baseId) {
+                        $name = $m['name'] ?? null; // Full model resource name: models/xxx
+                        $baseId = $m['baseModelId'] ?? null; // Friendly id
+                        $display = $m['displayName'] ?? $baseId ?? $name;
+                        if ($name) {
+                            // Prefer using full resource name to avoid version mismatches
+                            $gemini_models[$name] = $display;
+                        } elseif ($baseId) {
                             $gemini_models[$baseId] = $display;
                         }
                     }
@@ -83,7 +90,13 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
         <select name="gemini_model" id="gemini_model">
             <?php if (!empty($gemini_models)): ?>
                 <?php foreach ($gemini_models as $model_id => $label): ?>
-                    <option value="<?php echo htmlspecialchars($model_id); ?>" <?php echo ($gemini_model === $model_id ? 'selected' : ''); ?>><?php echo htmlspecialchars($label); ?> (<?php echo htmlspecialchars($model_id); ?>)</option>
+                    <?php
+                        $curr = (string)$gemini_model;
+                        $idA = preg_replace('#^models/#', '', (string)$model_id);
+                        $idB = preg_replace('#^models/#', '', $curr);
+                        $is_selected = ($curr === (string)$model_id) || ($idA === $idB);
+                    ?>
+                    <option value="<?php echo htmlspecialchars($model_id); ?>" <?php echo ($is_selected ? 'selected' : ''); ?> title="<?php echo htmlspecialchars($model_id); ?>"><?php echo htmlspecialchars($label ?: $model_id); ?></option>
                 <?php endforeach; ?>
             <?php else: ?>
                 <!-- Fallback static options when API key is missing or listing failed -->

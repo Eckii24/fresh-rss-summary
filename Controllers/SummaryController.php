@@ -89,7 +89,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         // Get video metadata for better context
         $video_info = $this->getYouTubeVideoInfo($video_id);
         
-        $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
+        $url = $this->buildGenerateContentUrl($model);
         
         $video_context = "YouTube Video Analysis Request\n";
         $video_context .= "Video URL: {$youtube_url}\n";
@@ -122,7 +122,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             ]
         ];
 
-        return $this->callGeminiAPI($url, $data);
+        return $this->callGeminiAPI($url, $data, $api_key);
     }
     
     private function getYouTubeVideoInfo($video_id)
@@ -174,7 +174,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
     private function summarizeTextContent($content, $article_url, $prompt, $api_key, $model, $max_tokens, $temperature)
     {
-        $url = self::GEMINI_API_BASE . "/models/{$model}:generateContent?key={$api_key}";
+        $url = $this->buildGenerateContentUrl($model);
         
         // Convert HTML to plain text for better processing
         $text_content = $this->htmlToText($content);
@@ -214,10 +214,10 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             ]
         ];
 
-        return $this->callGeminiAPI($url, $data);
+        return $this->callGeminiAPI($url, $data, $api_key);
     }
 
-    private function callGeminiAPI($url, $data)
+    private function callGeminiAPI($url, $data, $api_key)
     {
         $json_data = json_encode($data);
         
@@ -229,7 +229,8 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             CURLOPT_POSTFIELDS => $json_data,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
-                'Content-Length: ' . strlen($json_data)
+                'Content-Length: ' . strlen($json_data),
+                'x-goog-api-key: ' . $api_key,
             ],
             CURLOPT_TIMEOUT => 30,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -239,8 +240,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         
         if (curl_error($ch)) {
+            $err = curl_error($ch);
             curl_close($ch);
-            throw new Exception('CURL Error: ' . curl_error($ch));
+            throw new Exception('CURL Error: ' . $err);
         }
         
         curl_close($ch);
@@ -250,12 +252,50 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         }
 
         $result = json_decode($response, true);
-        
-        if (!$result || !isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new Exception('Invalid API response format');
+        if (!is_array($result)) {
+            throw new Exception('Invalid API response (non-JSON)');
+        }
+        if (isset($result['error'])) {
+            $msg = $result['error']['message'] ?? 'Unknown API error';
+            throw new Exception('Gemini API error: ' . $msg);
         }
 
-        return $result['candidates'][0]['content']['parts'][0]['text'];
+        $all_text = [];
+        if (isset($result['candidates']) && is_array($result['candidates'])) {
+            foreach ($result['candidates'] as $cand) {
+                if (!isset($cand['content']['parts']) || !is_array($cand['content']['parts'])) {
+                    continue;
+                }
+                foreach ($cand['content']['parts'] as $part) {
+                    if (isset($part['text']) && is_string($part['text'])) {
+                        $all_text[] = $part['text'];
+                    }
+                }
+            }
+        }
+
+        if (!empty($all_text)) {
+            return trim(implode("\n\n", $all_text));
+        }
+
+        if (isset($result['promptFeedback']['blockReason'])) {
+            $reason = $result['promptFeedback']['blockReason'];
+            throw new Exception('Model returned no content (blocked: ' . $reason . ')');
+        }
+
+        throw new Exception('Invalid API response format (no candidates text)');
+    }
+
+    private function buildGenerateContentUrl($model)
+    {
+        $model = trim((string)$model);
+        if ($model === '') {
+            throw new Exception('Empty model identifier');
+        }
+        $path = (strpos($model, 'models/') === 0)
+            ? '/' . $model . ':generateContent'
+            : '/models/' . $model . ':generateContent';
+        return self::GEMINI_API_BASE . $path;
     }
 
     private function htmlToText($html)
