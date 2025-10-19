@@ -1,5 +1,7 @@
 <?php
 
+require_once dirname(__DIR__) . '/GeminiConfig.php';
+
 class FreshExtension_Summary_Controller extends Minz_ActionController
 {
     private const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -20,13 +22,10 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
         $temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
-        // Clamp values to sane ranges in case config holds out-of-range values
-        $max_tokens = (int)$max_tokens;
-        if ($max_tokens < 100) { $max_tokens = 100; }
-        if ($max_tokens > 4096) { $max_tokens = 4096; }
-        $temperature = (float)$temperature;
-        if ($temperature < 0.0) { $temperature = 0.0; }
-        if ($temperature > 2.0) { $temperature = 2.0; }
+        
+        // Use shared clamping logic to ensure values are in valid ranges
+        $max_tokens = GeminiConfig::clampMaxTokens($max_tokens);
+        $temperature = GeminiConfig::clampTemperature($temperature);
 
         // Validate configuration
         if (empty($api_key) || empty($model)) {

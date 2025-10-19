@@ -5,6 +5,10 @@ $gemini_general_prompt = FreshRSS_Context::$user_conf->gemini_general_prompt ?? 
 $gemini_youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
 $gemini_max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
 $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
+
+// Get models data from the extension (set in handleConfigureAction)
+$gemini_models = $GLOBALS['summary_extension_vars']['gemini_models'] ?? [];
+$gemini_models_error = $GLOBALS['summary_extension_vars']['gemini_models_error'] ?? '';
 ?>
 
 <form action="<?php echo _url('extension', 'configure', 'e', urlencode($this->getName())); ?>" method="post">
@@ -17,73 +21,6 @@ $gemini_temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
         <input type="password" name="gemini_api_key" id="gemini_api_key" value="<?php echo htmlspecialchars($gemini_api_key); ?>" placeholder="Enter your Google Gemini API key" style="width: 100%; max-width: 400px;">
         <small>Get your API key from <a href="https://ai.google.dev/" target="_blank">Google AI Studio</a></small>
     </div>
-    
-    <?php
-    // Dynamically load Gemini models that support generateContent
-    $gemini_models_error = '';
-    $gemini_models = [];
-    if (!empty($gemini_api_key)) {
-        try {
-            $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
-            $pageToken = null;
-            do {
-                $url = $baseUrl . '?pageSize=1000';
-                if (!empty($pageToken)) {
-                    $url .= '&pageToken=' . urlencode($pageToken);
-                }
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $url,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_TIMEOUT => 15,
-                    CURLOPT_SSL_VERIFYPEER => true,
-                    CURLOPT_HTTPHEADER => [
-                        'x-goog-api-key: ' . $gemini_api_key,
-                    ],
-                ]);
-                $resp = curl_exec($ch);
-                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $curl_err = curl_error($ch);
-                curl_close($ch);
-
-                if (!empty($curl_err) || $http_code !== 200) {
-                    $gemini_models_error = 'Unable to fetch models list (HTTP ' . intval($http_code) . ').';
-                    break;
-                }
-
-                $payload = json_decode($resp, true);
-                if (isset($payload['models']) && is_array($payload['models'])) {
-                    foreach ($payload['models'] as $m) {
-                        $supported = $m['supportedGenerationMethods'] ?? [];
-                        if (!in_array('generateContent', $supported, true)) {
-                            continue; // Only show models that support generateContent
-                        }
-                        $name = $m['name'] ?? null; // Full model resource name: models/xxx
-                        $baseId = $m['baseModelId'] ?? null; // Friendly id
-                        $display = $m['displayName'] ?? $baseId ?? $name;
-                        if ($name) {
-                            // Prefer using full resource name to avoid version mismatches
-                            $gemini_models[$name] = $display;
-                        } elseif ($baseId) {
-                            $gemini_models[$baseId] = $display;
-                        }
-                    }
-                }
-                $pageToken = $payload['nextPageToken'] ?? null;
-            } while (!empty($pageToken));
-
-            if (empty($gemini_models)) {
-                if (empty($gemini_models_error)) {
-                    $gemini_models_error = 'No models supporting generateContent were returned.';
-                }
-            } else {
-                ksort($gemini_models);
-            }
-        } catch (Exception $e) {
-            $gemini_models_error = 'Error while loading models.';
-        }
-    }
-    ?>
 
     <div class="form-group">
         <label for="gemini_model">Gemini Model:</label>
