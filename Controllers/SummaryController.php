@@ -25,7 +25,13 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         
         // Check for custom prompt from request - if provided, use it instead of config prompt
         $custom_prompt = Minz_Request::param('custom_prompt', '');
+        $custom_prompt = trim($custom_prompt);
+        
+        // Validate and sanitize custom prompt
         if (!empty($custom_prompt)) {
+            // Limit length to prevent abuse (max 1000 characters)
+            $custom_prompt = substr($custom_prompt, 0, 1000);
+            // Use the sanitized custom prompt
             $general_prompt = $custom_prompt;
             $youtube_prompt = $custom_prompt;
         }
