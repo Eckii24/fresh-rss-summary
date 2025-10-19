@@ -38,7 +38,7 @@ class SummaryExtension extends Minz_Extension
     {
         if (Minz_Request::isPost()) {
             FreshRSS_Context::$user_conf->gemini_api_key = Minz_Request::param('gemini_api_key', '');
-            FreshRSS_Context::$user_conf->gemini_model = Minz_Request::param('gemini_model', 'gemini-2.5-flash');
+            FreshRSS_Context::$user_conf->gemini_model = Minz_Request::param('gemini_model', 'gemini-2.0-flash-latest');
             FreshRSS_Context::$user_conf->gemini_general_prompt = Minz_Request::param('gemini_general_prompt', '');
             FreshRSS_Context::$user_conf->gemini_youtube_prompt = Minz_Request::param('gemini_youtube_prompt', '');
             FreshRSS_Context::$user_conf->gemini_max_tokens = (int)Minz_Request::param('gemini_max_tokens', 1024);

@@ -15,7 +15,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
         // Get configuration
         $api_key = FreshRSS_Context::$user_conf->gemini_api_key ?? '';
-        $model = FreshRSS_Context::$user_conf->gemini_model ?? 'gemini-2.5-flash';
+        $model = FreshRSS_Context::$user_conf->gemini_model ?? 'gemini-2.0-flash-latest';
         $general_prompt = FreshRSS_Context::$user_conf->gemini_general_prompt ?? 'Please provide a concise summary of the following article content:';
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
@@ -235,7 +235,14 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $result = json_decode($response, true);
         
         if (!$result || !isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new Exception('Invalid API response format');
+            // Provide more detailed error information
+            $error_detail = 'Invalid API response format';
+            if ($result && isset($result['error'])) {
+                $error_detail = 'API Error: ' . ($result['error']['message'] ?? json_encode($result['error']));
+            } elseif ($response) {
+                $error_detail = 'Unexpected response structure. Response: ' . substr($response, 0, 500);
+            }
+            throw new Exception($error_detail);
         }
 
         return $result['candidates'][0]['content']['parts'][0]['text'];

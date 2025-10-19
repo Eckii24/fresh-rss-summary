@@ -30,13 +30,11 @@ An AI-powered article summarization extension for FreshRSS using Google Gemini, 
 ## Configuration
 
 ### API Key
-Get your free Google Gemini API key from [Google AI Studio](https://ai.google.dev/). The extension supports all Gemini models including:
-- Gemini 2.5 Flash (latest, recommended for speed)
-- Gemini 2.5 Pro (latest premium model)
-- Gemini 2.0 Flash (fast processing)
-- Gemini 1.5 Flash (recommended for speed)
-- Gemini 1.5 Pro (better quality)
-- Gemini Pro (legacy)
+Get your free Google Gemini API key from [Google AI Studio](https://ai.google.dev/). The extension supports the latest Gemini models:
+- Gemini 2.0 Flash Latest (recommended for speed with latest features)
+- Gemini 2.0 Pro Latest (premium model with better quality)
+
+**Note**: Model availability may vary. For the most up-to-date list of available models, check the [Official Gemini API Models Documentation](https://ai.google.dev/gemini-api/docs/models/gemini). If the 2.0 models are not yet available, the extension will fall back to stable 1.5 models.
 
 ### Prompts
 - **General Articles Prompt**: Used for regular text articles and blog posts
