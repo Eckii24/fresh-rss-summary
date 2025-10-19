@@ -23,6 +23,13 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
         $temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
         
+        // Check for custom prompt from request - if provided, use it instead of config prompt
+        $custom_prompt = Minz_Request::param('custom_prompt', '');
+        if (!empty($custom_prompt)) {
+            $general_prompt = $custom_prompt;
+            $youtube_prompt = $custom_prompt;
+        }
+        
         // Use shared clamping logic to ensure values are in valid ranges
         $max_tokens = GeminiConfig::clampMaxTokens($max_tokens);
         $temperature = GeminiConfig::clampTemperature($temperature);

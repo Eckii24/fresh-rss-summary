@@ -55,6 +55,7 @@ function handleSummaryButtonClick(button) {
 
 async function fetchSummary(container, button) {
     const contentDiv = container.querySelector('.gemini-summary-content');
+    const customPromptInput = container.querySelector('.gemini-custom-prompt');
     
     // Set loading state
     container.classList.add('loading');
@@ -69,6 +70,11 @@ async function fetchSummary(container, button) {
         const formData = new FormData();
         formData.append('ajax', 'true');
         formData.append('_csrf', context.csrf);
+        
+        // Add custom prompt if provided
+        if (customPromptInput && customPromptInput.value.trim()) {
+            formData.append('custom_prompt', customPromptInput.value.trim());
+        }
         
         const response = await fetch(url, {
             method: 'POST',
