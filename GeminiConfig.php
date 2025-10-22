@@ -4,7 +4,7 @@ class GeminiConfig
 {
     // Gemini model configuration bounds
     const GEMINI_MAX_TOKENS_MIN = 100;
-    const GEMINI_MAX_TOKENS_MAX = 4096;
+    const GEMINI_MAX_TOKENS_MAX = 8192;
     const GEMINI_TEMPERATURE_MIN = 0.0;
     const GEMINI_TEMPERATURE_MAX = 2.0;
     const GEMINI_REQUEST_TIMEOUT_MIN = 10;

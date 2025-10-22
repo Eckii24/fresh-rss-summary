@@ -67,8 +67,8 @@ $gemini_models_error = $GLOBALS['summary_extension_vars']['gemini_models_error']
     
     <div class="form-group">
         <label for="gemini_max_tokens">Maximum Output Tokens:</label>
-        <input type="number" name="gemini_max_tokens" id="gemini_max_tokens" value="<?php echo htmlspecialchars($gemini_max_tokens); ?>" min="100" max="4096" step="1" style="width: 120px;">
-        <small>Maximum length of the generated summary (100-4096 tokens)</small>
+        <input type="number" name="gemini_max_tokens" id="gemini_max_tokens" value="<?php echo htmlspecialchars($gemini_max_tokens); ?>" min="100" max="8192" step="1" style="width: 120px;">
+        <small>Maximum length of the generated summary (100-8192 tokens)</small>
     </div>
     
     <div class="form-group">
