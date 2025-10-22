@@ -53,6 +53,9 @@ class SummaryExtension extends Minz_Extension
             $temp = GeminiConfig::clampTemperature(Minz_Request::param('gemini_temperature', 0.7));
             FreshRSS_Context::$user_conf->gemini_temperature = $temp;
             
+            $timeout = GeminiConfig::clampRequestTimeout(Minz_Request::param('gemini_request_timeout', GeminiConfig::GEMINI_REQUEST_TIMEOUT_DEFAULT));
+            FreshRSS_Context::$user_conf->gemini_request_timeout = $timeout;
+            
             FreshRSS_Context::$user_conf->save();
         }
         

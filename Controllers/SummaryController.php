@@ -22,6 +22,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         $youtube_prompt = FreshRSS_Context::$user_conf->gemini_youtube_prompt ?? 'Please provide a concise summary of this YouTube video:';
         $max_tokens = FreshRSS_Context::$user_conf->gemini_max_tokens ?? 1024;
         $temperature = FreshRSS_Context::$user_conf->gemini_temperature ?? 0.7;
+        $request_timeout = FreshRSS_Context::$user_conf->gemini_request_timeout ?? GeminiConfig::GEMINI_REQUEST_TIMEOUT_DEFAULT;
         
         // Check for custom prompt from request - if provided, use it instead of config prompt
         $custom_prompt = Minz_Request::param('custom_prompt', '');
@@ -39,6 +40,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         // Use shared clamping logic to ensure values are in valid ranges
         $max_tokens = GeminiConfig::clampMaxTokens($max_tokens);
         $temperature = GeminiConfig::clampTemperature($temperature);
+        $request_timeout = GeminiConfig::clampRequestTimeout($request_timeout);
 
         // Validate configuration
         if (empty($api_key) || empty($model)) {
@@ -67,9 +69,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             $youtube_video_id = $this->extractYouTubeVideoId($article_url);
             
             if ($youtube_video_id) {
-                $summary = $this->summarizeYouTubeVideo($youtube_video_id, $youtube_prompt, $api_key, $model, $max_tokens, $temperature);
+                $summary = $this->summarizeYouTubeVideo($youtube_video_id, $youtube_prompt, $api_key, $model, $max_tokens, $temperature, $request_timeout);
             } else {
-                $summary = $this->summarizeTextContent($content, $article_url, $general_prompt, $api_key, $model, $max_tokens, $temperature);
+                $summary = $this->summarizeTextContent($content, $article_url, $general_prompt, $api_key, $model, $max_tokens, $temperature, $request_timeout);
             }
 
             echo json_encode([
@@ -96,7 +98,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         return null;
     }
 
-    private function summarizeYouTubeVideo($video_id, $prompt, $api_key, $model, $max_tokens, $temperature)
+    private function summarizeYouTubeVideo($video_id, $prompt, $api_key, $model, $max_tokens, $temperature, $request_timeout)
     {
         // For YouTube videos, we have two approaches:
         // 1. Use video file upload API (complex, requires file processing)
@@ -147,7 +149,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             ]
         ];
 
-        return $this->callGeminiAPI($url, $data, $api_key);
+        return $this->callGeminiAPI($url, $data, $api_key, $request_timeout);
     }
     
     private function getYouTubeVideoInfo($video_id)
@@ -197,7 +199,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
         return null;
     }
 
-    private function summarizeTextContent($content, $article_url, $prompt, $api_key, $model, $max_tokens, $temperature)
+    private function summarizeTextContent($content, $article_url, $prompt, $api_key, $model, $max_tokens, $temperature, $request_timeout)
     {
         $url = $this->buildGenerateContentUrl($model);
         
@@ -245,10 +247,10 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
             ]
         ];
 
-        return $this->callGeminiAPI($url, $data, $api_key);
+        return $this->callGeminiAPI($url, $data, $api_key, $request_timeout);
     }
 
-    private function callGeminiAPI($url, $data, $api_key)
+    private function callGeminiAPI($url, $data, $api_key, $request_timeout)
     {
         $json_data = json_encode($data);
         
@@ -263,7 +265,7 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 'Content-Length: ' . strlen($json_data),
                 'x-goog-api-key: ' . $api_key,
             ],
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT => $request_timeout,
             CURLOPT_SSL_VERIFYPEER => true,
         ]);
 
