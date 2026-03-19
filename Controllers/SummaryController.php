@@ -100,31 +100,78 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
     private function summarizeYouTubeVideo($video_id, $prompt, $api_key, $model, $max_tokens, $temperature, $request_timeout)
     {
-        // For YouTube videos, we have two approaches:
-        // 1. Use video file upload API (complex, requires file processing)
-        // 2. Use text-based approach with video metadata (simpler, more reliable)
-        
-        // We'll use approach 2 for better reliability and easier implementation
+        // Use the Gemini native fileData.fileUri approach to pass the YouTube URL directly.
+        // This allows the model to process the actual video content (audio + visuals) without
+        // requiring manual downloading or HTML scraping.
         $youtube_url = "https://www.youtube.com/watch?v={$video_id}";
-        
-        // Get video metadata for better context
-        $video_info = $this->getYouTubeVideoInfo($video_id);
-        
+
         $url = $this->buildGenerateContentUrl($model);
-        
+
+        $data = [
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        [
+                            'fileData' => [
+                                'fileUri' => $youtube_url,
+                                'mimeType' => 'video/*',
+                            ]
+                        ],
+                        [
+                            'text' => $prompt
+                        ]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => $temperature,
+                'maxOutputTokens' => $max_tokens,
+                'topP' => 0.9,
+                'responseMimeType' => 'text/plain'
+            ],
+            'toolConfig' => [
+                'functionCallingConfig' => [
+                    'mode' => 'NONE'
+                ]
+            ]
+        ];
+
+        try {
+            return $this->callGeminiAPI($url, $data, $api_key, $request_timeout);
+        } catch (Exception $e) {
+            // If the native fileData approach fails (e.g. model doesn't support video input),
+            // fall back to a text-only description using scraped metadata.
+            // Preserve the original error in case the fallback also fails.
+            $originalError = $e->getMessage();
+            try {
+                $video_info = $this->getYouTubeVideoInfo($video_id);
+                return $this->summarizeYouTubeVideoFallback($video_id, $video_info, $prompt, $api_key, $model, $max_tokens, $temperature, $request_timeout);
+            } catch (Exception $fallbackEx) {
+                throw new Exception($fallbackEx->getMessage() . ' (native video error: ' . $originalError . ')');
+            }
+        }
+    }
+
+    private function summarizeYouTubeVideoFallback($video_id, $video_info, $prompt, $api_key, $model, $max_tokens, $temperature, $request_timeout)
+    {
+        $youtube_url = "https://www.youtube.com/watch?v={$video_id}";
+
+        $url = $this->buildGenerateContentUrl($model);
+
         $video_context = "YouTube Video Analysis Request\n";
         $video_context .= "Video URL: {$youtube_url}\n";
-        
+
         if ($video_info) {
             $video_context .= "Video Title: {$video_info['title']}\n";
             if (!empty($video_info['description'])) {
                 $video_context .= "Video Description: {$video_info['description']}\n";
             }
         }
-        
-        $video_context .= "\nNote: This is a YouTube video. Please provide a summary based on the video title and description, ";
+
+        $video_context .= "\nNote: Please provide a summary based on the available video title and description, ";
         $video_context .= "focusing on the main topics, key points, and overall content theme.";
-        
+
         $data = [
             'contents' => [
                 [
@@ -151,11 +198,9 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
 
         return $this->callGeminiAPI($url, $data, $api_key, $request_timeout);
     }
-    
+
     private function getYouTubeVideoInfo($video_id)
     {
-        // Simple approach to get video info from YouTube page
-        // This is a basic implementation - in production you might want to use YouTube API
         try {
             $url = "https://www.youtube.com/watch?v={$video_id}";
             $ch = curl_init();
@@ -165,37 +210,35 @@ class FreshExtension_Summary_Controller extends Minz_ActionController
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_TIMEOUT => 10,
                 CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYPEER => true,
             ]);
-            
+
             $html = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            
+
             if ($http_code === 200 && $html) {
                 $title = '';
                 $description = '';
-                
-                // Extract title
+
                 if (preg_match('/<title>([^<]*)<\/title>/i', $html, $matches)) {
                     $title = html_entity_decode($matches[1], ENT_QUOTES, 'UTF-8');
                     $title = str_replace(' - YouTube', '', $title);
                 }
-                
-                // Extract description from meta tag
+
                 if (preg_match('/<meta name="description" content="([^"]*)"/', $html, $matches)) {
                     $description = html_entity_decode($matches[1], ENT_QUOTES, 'UTF-8');
                 }
-                
+
                 return [
                     'title' => $title,
-                    'description' => substr($description, 0, 500) // Limit description length
+                    'description' => substr($description, 0, 500)
                 ];
             }
         } catch (Exception $e) {
             // If we can't get video info, just continue without it
         }
-        
+
         return null;
     }
 

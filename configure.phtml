@@ -39,11 +39,11 @@ $gemini_models_error = $GLOBALS['summary_extension_vars']['gemini_models_error']
             <?php else: ?>
                 <!-- Fallback static options when API key is missing or listing failed -->
                 <option value="gemini-2.5-flash" <?php echo ($gemini_model === 'gemini-2.5-flash' ? 'selected' : ''); ?>>Gemini 2.5 Flash (Latest Fast)</option>
+                <option value="gemini-2.5-flash-lite" <?php echo ($gemini_model === 'gemini-2.5-flash-lite' ? 'selected' : ''); ?>>Gemini 2.5 Flash-Lite (Fastest)</option>
                 <option value="gemini-2.5-pro" <?php echo ($gemini_model === 'gemini-2.5-pro' ? 'selected' : ''); ?>>Gemini 2.5 Pro (Latest Premium)</option>
                 <option value="gemini-2.0-flash" <?php echo ($gemini_model === 'gemini-2.0-flash' ? 'selected' : ''); ?>>Gemini 2.0 Flash</option>
                 <option value="gemini-1.5-flash" <?php echo ($gemini_model === 'gemini-1.5-flash' ? 'selected' : ''); ?>>Gemini 1.5 Flash (Fast)</option>
                 <option value="gemini-1.5-pro" <?php echo ($gemini_model === 'gemini-1.5-pro' ? 'selected' : ''); ?>>Gemini 1.5 Pro (Higher Quality)</option>
-                <option value="gemini-pro" <?php echo ($gemini_model === 'gemini-pro' ? 'selected' : ''); ?>>Gemini Pro (Legacy)</option>
             <?php endif; ?>
         </select>
         <?php if (!empty($gemini_models_error)): ?>
@@ -67,8 +67,8 @@ $gemini_models_error = $GLOBALS['summary_extension_vars']['gemini_models_error']
     
     <div class="form-group">
         <label for="gemini_max_tokens">Maximum Output Tokens:</label>
-        <input type="number" name="gemini_max_tokens" id="gemini_max_tokens" value="<?php echo htmlspecialchars($gemini_max_tokens); ?>" min="100" max="8192" step="1" style="width: 120px;">
-        <small>Maximum length of the generated summary (100-8192 tokens)</small>
+        <input type="number" name="gemini_max_tokens" id="gemini_max_tokens" value="<?php echo htmlspecialchars($gemini_max_tokens); ?>" min="100" max="65536" step="1" style="width: 120px;">
+        <small>Maximum length of the generated summary (100-65536 tokens). Newer Gemini 2.5 models support up to 65536.</small>
     </div>
     
     <div class="form-group">
